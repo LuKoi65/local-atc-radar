@@ -1,0 +1,309 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background-color: #0a0f14;
+  color: #00ff66;
+  font-family: 'JetBrains Mono', 'Roboto Mono', Consolas, monospace;
+}
+
+/* Custom scrollbars for ATC panels */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0f14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a3328;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ff66;
+}
+
+/* Leaflet dark radar scope overrides */
+.leaflet-container {
+  background-color: #0a0f14 !important;
+  font-family: 'JetBrains Mono', 'Roboto Mono', Consolas, monospace !important;
+  outline: none;
+}
+
+/* OpenStreetMap dark mode filter */
+.map-osm-dark img {
+  filter: invert(100%) hue-rotate(180deg) brightness(75%) contrast(90%);
+}
+
+/* OpenAIP dark-radar integration filter */
+.map-openaip img {
+  filter: contrast(115%) brightness(95%);
+}
+
+.leaflet-control-zoom {
+  border: 1px solid #1a3328 !important;
+  border-radius: 2px !important;
+}
+
+.leaflet-control-zoom a {
+  background-color: #0e171f !important;
+  color: #00ff66 !important;
+  border-bottom: 1px solid #1a3328 !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background-color: #14202b !important;
+  color: #00e5ff !important;
+}
+
+.leaflet-control-attribution {
+  background: rgba(10, 15, 20, 0.8) !important;
+  color: #4a6764 !important;
+  font-size: 10px !important;
+}
+
+.leaflet-control-attribution a {
+  color: #00bb4a !important;
+}
+
+/* Radar scanline effect overlay */
+.radar-grid-bg {
+  background-image: 
+    radial-gradient(circle at center, rgba(0, 255, 102, 0.03) 0%, rgba(10, 15, 20, 0.95) 100%),
+    linear-gradient(rgba(0, 255, 102, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 102, 0.03) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+}
+
+/* Glowing text effects */
+.text-glow-green {
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
+}
+
+.text-glow-cyan {
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
+.text-glow-amber {
+  text-shadow: 0 0 8px rgba(255, 170, 0, 0.6);
+}
+
+.text-glow-alert {
+  text-shadow: 0 0 8px rgba(255, 51, 68, 0.7);
+}
+
+/* Blinking animations */
+@keyframes atc-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.2; }
+}
+
+.animate-atc-blink {
+  animation: atc-blink 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes sweep-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-radar-sweep {
+  animation: sweep-rotate 4s linear infinite;
+  transform-origin: center center;
+}
+
+/* ========================================================
+   THEME CLASSIQUE / BRUT (Vintage ATC Terminal / Squared)
+   ======================================================== */
+.theme-classic {
+  background-color: #06090c !important;
+  font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace !important;
+}
+
+/* 1. Eliminate all rounded corners across all elements */
+.theme-classic,
+.theme-classic *,
+.theme-classic *::before,
+.theme-classic *::after {
+  border-radius: 0 !important;
+}
+
+/* 2. Strip all modern neon glows, blurred glassmorphism, and drop-shadows */
+.theme-classic,
+.theme-classic *,
+.theme-classic *::before,
+.theme-classic *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* 3. Solid, high-contrast, opaque backgrounds (no transparent muddy glass) */
+.theme-classic .bg-radar-bg {
+  background-color: #06090c !important;
+}
+
+.theme-classic .bg-radar-panel,
+.theme-classic .bg-radar-panel\/95,
+.theme-classic .bg-radar-panel\/90,
+.theme-classic .bg-radar-panel\/80 {
+  background-color: #0c1015 !important;
+}
+
+.theme-classic .bg-radar-surface,
+.theme-classic .bg-radar-surface\/90,
+.theme-classic .bg-radar-surface\/80,
+.theme-classic .bg-radar-surface\/60,
+.theme-classic .bg-radar-surface\/50 {
+  background-color: #11171f !important;
+}
+
+.theme-classic header {
+  background-color: #0c1015 !important;
+  border-bottom: 2px solid #203029 !important;
+}
+
+.theme-classic footer {
+  background-color: #0c1015 !important;
+  border-top: 2px solid #203029 !important;
+}
+
+/* 4. Crisp borders */
+.theme-classic .border-radar-border {
+  border-color: #203029 !important;
+}
+
+.theme-classic .border-radar-cyan,
+.theme-classic .border-radar-cyan\/40,
+.theme-classic .border-radar-cyan\/60 {
+  border-color: #00bcd4 !important;
+}
+
+.theme-classic .border-radar-green,
+.theme-classic .border-radar-green\/40 {
+  border-color: #00aa44 !important;
+}
+
+/* 5. Mechanical, utilitarian active buttons: solid inverted blocks */
+.theme-classic .bg-radar-green,
+.theme-classic .bg-radar-green-dim {
+  background-color: #00aa44 !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  border: 1px solid #00ff66 !important;
+}
+
+.theme-classic .bg-radar-cyan,
+.theme-classic .bg-radar-cyan-dim {
+  background-color: #00a4b8 !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  border: 1px solid #00e5ff !important;
+}
+
+.theme-classic .bg-radar-amber {
+  background-color: #cc8400 !important;
+  color: #000000 !important;
+  font-weight: 800 !important;
+  border: 1px solid #ffaa00 !important;
+}
+
+/* Inactive buttons in classic mode */
+.theme-classic button {
+  transition: none !important;
+}
+
+/* 6. Inputs & Selects: Solid flat dark, sharp 1px border */
+.theme-classic input,
+.theme-classic select,
+.theme-classic textarea {
+  background-color: #070a0e !important;
+  border: 1px solid #203029 !important;
+  border-radius: 0 !important;
+}
+
+.theme-classic input:focus,
+.theme-classic select:focus {
+  border-color: #00ff66 !important;
+  outline: 1px solid #00ff66 !important;
+}
+
+/* 7. Modal overlay: solid high-contrast dark overlay (no blur) */
+.theme-classic .bg-black\/75 {
+  background-color: rgba(4, 7, 10, 0.94) !important;
+}
+
+/* 8. Squared mechanical scrollbars */
+.theme-classic ::-webkit-scrollbar-thumb {
+  border-radius: 0 !important;
+  background-color: #203029 !important;
+  border: 1px solid #070a0e !important;
+}
+
+.theme-classic ::-webkit-scrollbar-thumb:hover {
+  background-color: #00aa44 !important;
+}
+
+.theme-classic ::-webkit-scrollbar-track {
+  background-color: #070a0e !important;
+}
+
+/* 9. Leaflet controls */
+.theme-classic .leaflet-control-zoom,
+.theme-classic .leaflet-control-zoom a {
+  border-radius: 0 !important;
+  border: 1px solid #203029 !important;
+}
+
+.theme-classic .leaflet-control-zoom a {
+  background-color: #0c1015 !important;
+  color: #00ff66 !important;
+}
+
+.theme-classic .leaflet-control-zoom a:hover {
+  background-color: #00aa44 !important;
+  color: #000000 !important;
+}
+
+/* 10. Classic CRT Grid Scanlines */
+.theme-classic .radar-grid-bg {
+  background-image: 
+    linear-gradient(rgba(0, 255, 102, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 102, 0.04) 1px, transparent 1px),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.28) 0px, rgba(0, 0, 0, 0.28) 1px, transparent 1px, transparent 3px);
+  background-size: 40px 40px, 40px 40px, 100% 3px;
+}
+
+/* 11. Range sliders in classic mode */
+.theme-classic input[type="range"]::-webkit-slider-thumb {
+  border-radius: 0 !important;
+  width: 12px !important;
+  height: 18px !important;
+  background: #00ff66 !important;
+  border: 1px solid #000000 !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+}
+
+.theme-classic .bg-gradient-to-r {
+  background-image: none !important;
+  background-color: #00aa44 !important;
+}
+
+/* 12. Digital 1-bit mechanical blinking (no soft bezier fade) */
+.theme-classic .animate-pulse {
+  animation: atc-blink 1s steps(2, start) infinite !important;
+}
+
