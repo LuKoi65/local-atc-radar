@@ -1,4 +1,4 @@
-# ATC STARS & Approach Radar Simulator
+# Local ATC Radar
 
 A modular, authentic Air Traffic Control (ATC) Tower & Approach Radar Simulator styled after standard **STARS / Eurocontrol Mode S** terminal scopes. Built with React, TypeScript, Leaflet, Tailwind CSS, and a Node.js/Express ADS-B backend proxy. Designed to run as a web application or packaged as a native Windows desktop app via Electron.
 
