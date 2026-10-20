@@ -1,135 +1,250 @@
-# ATC STARS & Approach Radar Simulator
+# Local ATC Radar — STARS & Approach Tower Scope
 
-A modular, authentic Air Traffic Control (ATC) Tower & Approach Radar Simulator styled after standard **STARS / Eurocontrol Mode S** terminal scopes. Built with React, TypeScript, Leaflet, Tailwind CSS, and a Node.js/Express ADS-B backend proxy. Designed to run as a web application or packaged as a native Windows desktop app via Electron.
+[![Theme](https://img.shields.io/badge/Theme-Phosphor%20Green%20%26%20Cyan-00ff66)](#-customizable-gui-themes--accent-colors)
+[![Release](https://img.shields.io/badge/Release-v0.4.0-00e5ff)](https://github.com/)
+[![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Electron%20Windows%20x64-00e5ff)](#-running--packaging)
+[![ADS-B Engine](https://img.shields.io/badge/ADS--B-Parallel%20Multi--Source%20Fusion-ffaa00)](#1-parallel-multi-source-ads-b-engine-zero-delay)
+[![STCA](https://img.shields.io/badge/Safety-STCA%20%26%20Collision%20Alert-ff2244)](#2-short-term-conflict-alert-stca--proximity-engine)
+[![Aero Info](https://img.shields.io/badge/Aeronautical-CTR%20%7C%20TMA%20%7C%20VOR%20%7C%20STARs-00e5ff)](#6-complete-aeronautical-database--isolated-stacking-panes)
 
-![Scope Theme](https://img.shields.io/badge/Theme-Phosphor%20Green%20%26%20Cyan-00ff66)
-![Version](https://img.shields.io/badge/Release-v0.4.0-00e5ff)
-![Platform](https://img.shields.io/badge/Platform-Web%20%7C%20Electron%20Windows-00e5ff)
-![ADS-B](https://img.shields.io/badge/Format-readsb%20%2F%20ADSBexchange-ffaa00)
-![Aero Info](https://img.shields.io/badge/Aeronautical-CTR%20%7C%20TMA%20%7C%20VOR%20%7C%20STARs-00e5ff)
-
----
-
-## ✈️ Features
-
-### 1. High-Legibility STARS Scope & Draggable Data Tags
-- **Crisp Typography:** High-contrast `JetBrains Mono`, `Roboto Mono`, and `Inter` tabular font stack eliminating visual blur.
-- **Movable / Draggable Aircraft Tags:** Click and drag any aircraft data tag on screen to deconflict overlapping traffic when aircraft fly close together. The dynamic SVG leader line stretches and tracks the aircraft target at all times. Double-click any tag to instantly reset its position.
-- **Radar Scope Modes:** Pure black vector canvas or dim dark-matter geographical terrain underlay (no street labels).
-- **Concentric Range Rings:** Rings at 5, 10, 15, 20, and 30 NM with azimuth degree ticks every 30° (`000°`, `030°`, `060°`, ..., `330°`).
-- **Physical Runways & Approach Corridors:** Threshold coordinates, width (45m), 15 NM extended approach centerlines with 1 NM ticks and 5 NM graduation ticks, and 3.2° ILS localizer feathers.
-- **Rotating Phosphor Sweep:** Authentic antenna sweep beam with decaying phosphor fade trail.
-
-### 2. Complete Aeronautical Map Information
-- **Controlled Airspaces:** Control Zones (CTR) and Terminal Control Areas (TMA) for Tarbes-Lourdes (Class D), Pau-Pyrénées (Class D), and military restricted low-altitude training corridors (LF-R 46) with floor/ceiling altitude limits (`SFC/2500 FT`, `2500 FT/FL115`, `4500 FT/FL145`).
-- **Radio Navaids (VOR / DME / NDB):** VOR/DME and NDB stations (`TLP` 110.7, `PAU` 112.4, `TBO` 114.45, `TOU` 117.7, `BT` 388 kHz, `PO` 334 kHz) with Morse code identifiers, frequencies, and elevations.
-- **RNAV Waypoints & Fixes:** Enroute and terminal fixes (`EBKOS`, `ARFOL`, `BEBIX`, `FOUCO`, `LURDO`, `OSQIL`, `VASIS`, `LOMRA`, etc.).
-- **Standard Terminal Arrival Routes (STARs):** Arrival vectors with altitude constraints (`EBKOS 2N`, `ARFOL 2N`, `BEBIX 2P`, `VASIS 1A`, `LOMRA 1A`).
-- **HUD Quick Toggles:** Instant top-bar toggles for `CTR`, `VOR`, `FIX`, and `STAR`.
-
-### 3. ADSBexchange-style Sidebar (Traffic Table)
-- **Collapsible Right Sidebar:** Full traffic table showing all tracked aircraft in the sector.
-- **Country Identification:** Automatic ICAO 24-bit hex range decoder displaying country name and flag emoji (🇫🇷 France, 🇪🇸 Spain, 🇬🇧 UK, 🇩🇪 Germany, 🇺🇸 USA, 🇮🇪 Ireland, etc.).
-- **Search & Filter:** Instant filter by callsign, tail registration, aircraft type, ICAO hex, or country.
-- **Multi-parameter Sorting:** Sort by distance, altitude, ground speed, or callsign.
-
-### 4. Comprehensive Tower Inspector & External Tracking Links
-- **One-Click Tracking Links:**
-  - 🌐 **ADSBexchange Globe:** Direct link to live 3D globe view (`globe.adsbexchange.com/?icao={hex}`)
-  - ✈️ **FlightAware:** Live flight tracking, origin/destination airports, scheduled arrival times, and delays (`flightaware.com/live/flight/{flight}`)
-  - 📡 **Flightradar24:** Live radar track (`flightradar24.com/{flight}`)
-  - 📷 **Planespotters.net:** High-resolution photos of the specific airframe registration (`planespotters.net/search?q={reg}`)
-- **Rich Telemetry:**
-  - Full aircraft model and description (e.g. `Airbus A320-214`, `Boeing 737-8AS WL`)
-  - Operator / Airline
-  - Altitudes: Barometric, Geometric / GPS, Autopilot MCP Selected Altitude
-  - Speeds: Ground Speed (GS), Indicated Airspeed (IAS), True Airspeed (TAS), Mach number (M)
-  - Navigation: Track, Magnetic Heading, True Heading, Roll angle, Autopilot Modes (VNAV, LNAV, TCAS)
-  - Transponder: Squawk code with emergency alerts (7700, 7600, 7500), RSSI signal strength, and message count
-  - Approach Alignment: Distance to threshold, bearing from threshold, localizer angular error, and estimated time to touchdown (ETA).
-
-### 5. Multi-Mode ADS-B Ingestion
-1. **Live Free Feed (Default):** Keyless live feed polling `api.airplanes.live` / `api.adsb.lol` every 2s via local Express proxy.
-2. **ADSBexchange API:** RapidAPI key and custom endpoint configuration via HUD Settings.
-3. **Simulation / Demo Mode:** Built-in dynamic traffic generator simulating realistic approaching, base leg intercept, departing, GA training, and high-altitude overflights around the active airport.
+A modular, authentic Air Traffic Control (ATC) Tower & Approach Radar Scope inspired by real-world **STARS (Standard Terminal Automation Replacement System)** and **Eurocontrol Mode S** terminal display systems. Built with **React 18**, **TypeScript**, **Leaflet**, **Tailwind CSS**, and an **Express / Node.js** live ADS-B aggregation proxy. Runs either as a lightweight web application or packaged as a standalone portable Windows desktop executable.
 
 ---
 
-## 🏗️ Project Structure
+## ✈️ Key Features (v0.4.0)
+
+### 1. Parallel Multi-Source ADS-B Engine (Zero Delay)
+* **Real-Time Multi-Feed Aggregation:** Simultaneously queries and merges traffic in parallel across independent receiver networks:
+  * **`opendata.adsb.fi`** (European & global open data)
+  * **`api.adsb.lol`** (Independent volunteer community network)
+  * **`OpenSky Network`** (High-coverage sensor network with dynamic bounding-box filtering)
+* **Instant Takeoff & Low-Altitude Detection:** Eliminates coverage blindspots. Low-altitude general aviation, helicopters, and departing aircraft climbing through 500–10,000 ft (e.g. at LFBT / Tarbes-Lourdes) appear on the radar scope immediately upon departure, with zero multi-minute waiting delay.
+* **Smart Deduplication & Field Fusion:** Tracks are unified by ICAO 24-bit hex address, merging the freshest GPS/barometric position, callsign, squawk, and airspeed.
+* **Optional ADSBexchange Mode:** Toggle between `LIVE` free multi-source feed and dedicated `ADSBX` feed (RapidAPI key configurable in Settings).
+
+---
+
+### 2. Short Term Conflict Alert (STCA) & Proximity Engine
+* **Predictive Collision Detection (ICAO / EUROCONTROL Standard):**
+  * Evaluates pairwise horizontal and vertical separation in real time.
+  * Extrapolates velocity vectors to calculate **Closest Point of Approach (CPA)** and estimated time to impact.
+* **Dual Alert Severity Levels:**
+  * **CAUTION (Amber):** Convergence detected (< 8 NM, < 1,500 ft, trajectory convergence < 2 min).
+  * **WARNING / STCA (Flashing Red):** Loss of separation imminent (< 5 NM, < 1,000 ft).
+* **Tactical Radar Representation:**
+  * **1.25 Hz Digital Hardware Strobe:** Crisp square-wave flashing (`stca-warning-strobe`) on target blip, hazard reticle, and ATC data tag with zero rendering lag.
+  * **Interconnecting Conflict Vector:** Dynamic dashed line linking conflicting aircraft.
+  * **Midpoint Separation Badge:** Tactical badge showing real-time distance (NM) and vertical difference (FT).
+  * **Bottom HUD Alert Banner:** Prominent conflict banner with an optional discrete audible ATC chime.
+* **Manual Conflict Acknowledgment / Mute (`[✕]`):**
+  * One-click dismissal button directly on the **Bottom Bar alert banner** or on the **Map Midpoint Badge** (`[✕]`).
+  * Instantly silences the audio alarm, stops the visual flashing, and removes the alert for known controlled situations (such as formation flights or hovering rescue helicopters).
+
+---
+
+### 3. Tactical ATC Distance & Heading Ruler ("Règle NM")
+* **Right-Click Direct Measurement:**
+  * **First Right-Click:** Anchors Point A with a precision crosshair.
+  * **Cursor Movement:** Draws a real-time cyan dashed measuring vector displaying:
+    * Distance in Nautical Miles (**NM**)
+    * Direct magnetic bearing / track (**CAP**)
+    * Reciprocal heading (**Reciprocal**)
+    * Estimated flight time at standard 250 kt approach speed.
+  * **Second Click (Left or Right):** Locks the measurement on screen for ongoing reference.
+  * **Clear Action:** Clear easily via **Escape**, the `[✕]` button on the tactical readout badge, or the bottom bar `[EFFACER]` action.
+
+---
+
+### 4. Radar Breadcrumbs & Phosphor History Trails
+* **Authentic Phosphor Decay:** Visualizes recent aircraft positions with decaying pastilles recreating authentic CRT radar screen persistence.
+* **Quick HUD Toggle:** Instantly switch history length from the bottom bar:
+  * `OFF` / `1 MIN` / `3 MIN` / `TOUT`
+* **Performance Throttling:** Optimized 15-second sampling buffer capped to lightweight SVG nodes maintaining solid 60 FPS under heavy traffic.
+* **Full Trajectory Track:** Displays the complete session flight path for any currently selected aircraft.
+
+---
+
+### 5. Customizable Radar Data Tags & Smart Anti-Overlap
+* **3 Declutter Levels:**
+  * **Compact:** Callsign + Flight Level (`RYR19JN FL100`).
+  * **Standard:** + Ground Speed (`330 kt`).
+  * **Extended:** + Tail Registration, Aircraft Model, and Transponder Squawk (`SP-RKV B738 SQ:1000`).
+* **Movable / Draggable Data Tags:** Click and drag any aircraft tag across the scope to eliminate visual clutter. The dynamic SVG leader line tracks the aircraft blip continuously. Double-click any tag to reset to its default offset.
+* **Smart Anti-Overlap (Auto-Deconfliction):** Dynamically adjusts leader line orientation (quadrant placement) when aircraft are in close proximity.
+* **High-Density Opaque Background:** Prevents underlying waypoints or runway labels from bleeding through active aircraft tags.
+
+---
+
+### 6. Complete Aeronautical Database & Isolated Stacking Panes
+* **Strict Leaflet Stacking Architecture:** Solves layer superposition glitches using isolated Leaflet Panes:
+  * `aeroPane` (`zIndex: 450`) : Static navigation infrastructure.
+  * `routePane` (`zIndex: 520`) : Great-circle flight paths.
+  * `userLocationPane` (`zIndex: 550`) : Local GPS / receiver station.
+  * `aircraftPane` (`zIndex: 650`) : **Primary Air Traffic** (targets, tags, velocity vectors, trails). Traffic is **strictly guaranteed** to render above static waypoints.
+  * `conflictPane` (`zIndex: 720`) : STCA vectors and separation badges.
+  * `rulerPane` (`zIndex: 750`) : Interactive measurement ruler.
+* **Controlled Airspaces (CTR / TMA / Restricted LF-R):** Precise geographic polygons with floor and ceiling limits (`SFC/2500 FT`, `2500 FT/FL115`, `4500 FT/FL145`).
+* **Radio Navaids (VOR / DME / NDB):** Stations (`TLP`, `PAU`, `TBO`, `TOU`, `BT`, `PO`) with frequencies, elevations, and Morse code.
+* **RNAV Fixes & STAR Procedures:** Waypoints and Standard Terminal Arrival Routes with altitude constraints (`EBKOS 2N`, `ARFOL 2N`, `BEBIX 2P`, `VASIS 1A`, `LOMRA 1A`).
+* **Physical Runway Strips & Extended Centerlines:** True 45m runway polygons, 15 NM extended centerlines with 1 NM and 5 NM graduation ticks, and ILS localizer feathers.
+
+---
+
+### 7. ATC Event Log & Session Export (CSV / JSON)
+* **Comprehensive Event History:** Timestamped logging of:
+  * Transponder Emergency Squawks (**7700** Emergency, **7600** Radio Failure, **7500** Hijacking)
+  * Short Term Conflict Alert (**STCA**) proximity events
+* **Data Export:**
+  * **CSV Export:** Structured export suitable for Microsoft Excel, LibreOffice, or data analysis.
+  * **JSON Export:** Full session state export including timestamps, positions, speeds, altitudes, and aircraft types.
+* **Muted Alerts Manager:** Overview of manually silenced conflict pairs with a 1-click `[RÉACTIVER LES ALERTES]` button.
+
+---
+
+### 8. Live Weather: METAR & TAF Integration
+* Real-time METAR and TAF decoded forecasts for the active airport via AviationWeather.gov API.
+* Real-time calculation of crosswind and headwind components relative to the selected runway end.
+* Automatic QNH altimeter setting and Transition Level (TL) reference.
+
+---
+
+### 9. Customizable GUI Themes & Accent Colors
+* **Two Distinct Operational Themes:**
+  * **Modern Neon:** Glassmorphic translucent surfaces, subtle cyan glow, and rounded tactical badges.
+  * **Classic Mechanical (Brut):** High-contrast squared borders, zero border-radius, pure black backgrounds, and CRT scanline styling.
+* **Full Color Customization:** Customize Primary Green, Secondary Cyan, Amber Warning, and Muted accents independently for both themes, with a 1-click **Reset** and preset loader.
+
+---
+
+### 10. Tower Inspector & External Tracking Links
+* **Direct 1-Click External Links:**
+  * 🌐 **ADSBexchange Globe:** `globe.adsbexchange.com/?icao={hex}`
+  * ✈️ **FlightAware:** `flightaware.com/live/flight/{flight}`
+  * 📡 **Flightradar24:** `flightradar24.com/{flight}`
+  * 📷 **Planespotters.net:** High-resolution photos of the active airframe registration.
+* **Live Flight Route on Scope:** Dashed cyan/green great-circle route line connecting origin, current aircraft position, and destination airport with tactical ARR/DEP badges.
+
+---
+
+## 🏗️ Project Architecture
 
 ```
 ├── electron/
-│   └── main.cjs                       # Windows Desktop App lifecycle (Electron)
+│   ├── icon.ico                       # Custom Windows application icon
+│   ├── icon.png                       # High-res scope badge icon
+│   └── main.cjs                       # Single-instance Electron desktop manager & in-process proxy boot
+├── release/                           # Production builds
+│   └── v0.4/
+│       ├── Local-ATC-Radar-win-x64/   # Standalone portable directory
+│       │   └── Local-ATC-Radar.exe    # Executable desktop application
+│       └── Local-ATC-Radar-v0.4-Windows.zip # Packaged portable ZIP archive
 ├── server/
-│   └── server.js                      # Express backend proxy (CORS, cache, live ADS-B API)
+│   └── server.js                      # Multi-source parallel aggregator proxy (adsb.fi, adsb.lol, OpenSky)
 ├── src/
 │   ├── components/
-│   │   ├── hud/                       # Tower HUD and Inspector controls
-│   │   │   ├── TopBar.tsx             # Airport switcher, runway toggle, aero layers, sidebar toggle
-│   │   │   ├── BottomBar.tsx          # Zulu clock, target count, cursor Lat/Lon, BRA tool
-│   │   │   ├── TrafficSidebar.tsx     # ADSBexchange-style aircraft list & detailed Inspector
-│   │   │   ├── CustomAirportModal.tsx # Form to define any custom ICAO, ARP, and runway
-│   │   │   └── SettingsModal.tsx      # RapidAPI key & aeronautical layer options
-│   │   └── radar/                     # Geospatial vector radar scope
-│   │       ├── RadarScope.tsx         # Leaflet container and master scope layout
-│   │       ├── RadarBackground.tsx    # Pure canvas vs Dim dark-matter terrain underlay
-│   │       ├── RangeRings.tsx         # 5, 10, 15, 20, 30 NM rings with 30° azimuth ticks
-│   │       ├── AeronauticalLayer.tsx  # Controlled airspaces, STARs, VORs, and RNAV waypoints
-│   │       ├── RunwayCorridor.tsx     # Physical runway polygons, extended 15 NM centerlines, ILS feather
-│   │       ├── AircraftLayer.tsx      # Crisp blips, 5-dot history trails, speed leaders, movable tags
-│   │       ├── TagDragHandler.tsx     # Dynamic tag repositioning & leader line tracking
-│   │       ├── RadarSweep.tsx         # Phosphor beam rotating sweep effect
-│   │       └── MapEventsHandler.tsx   # Real-time cursor tracking and runway BRA calculations
+│   │   ├── hud/                       # ATC HUD & Tactical Modal Panels
+│   │   │   ├── TopBar.tsx             # Airport switcher, runway selector, aero layers, theme selector
+│   │   │   ├── BottomBar.tsx          # STCA alert banner [✕], Zulu clock, ruler readout, trail selector
+│   │   │   ├── TrafficSidebar.tsx     # Filterable traffic list & comprehensive telemetry Inspector
+│   │   │   ├── AlertLogModal.tsx      # Emergency event history & CSV/JSON export
+│   │   │   ├── SettingsModal.tsx      # Theme color picker, STCA audio, rapidAPI, OpenAIP settings
+│   │   │   ├── MetarWidget.tsx        # Decoded METAR & runway crosswind calculator
+│   │   │   ├── TafWidget.tsx          # Aviation TAF aerodrome forecast
+│   │   │   └── AltitudeFilterWidget.tsx # Dual-slider altitude bracket filter (SFC to FL600)
+│   │   └── radar/                     # Geospatial Canvas & Tactical Radar Layers
+│   │       ├── RadarScope.tsx         # Leaflet container & multi-layer Pane hierarchy (z-indexes)
+│   │       ├── AircraftLayer.tsx      # Targets, speed vectors, draggable tags, 1.25 Hz STCA strobe
+│   │       ├── ConflictAlertLayer.tsx # STCA predictive lines, midpoint badge & dismissal handler
+│   │       ├── RulerLayer.tsx         # Right-click NM distance & heading measurement vector
+│   │       ├── FlightRouteLayer.tsx   # Origin/destination great-circle flight trajectory
+│   │       ├── AeronauticalLayer.tsx  # Airspaces (CTR/TMA), STARs, Navaids (VOR/DME/NDB), Fixes
+│   │       ├── RunwayCorridor.tsx     # Physical runway polygons, extended centerlines, ILS localizer
+│   │       ├── RangeRings.tsx         # 5 to 50 NM range rings & 30° azimuth degree labels
+│   │       ├── TagDragHandler.tsx     # Mouse drag listener for repositioning ATC tags
+│   │       └── RadarBackground.tsx    # Pure black canvas vs OSM Dark / OpenAIP chart underlay
 │   ├── data/
-│   │   ├── aeronautical/              # Navigation database
-│   │   │   ├── airspaces.ts           # CTR, TMA, and Restricted LF-R boundaries
-│   │   │   ├── navaids.ts             # VOR, DME, NDB stations with Morse code
-│   │   │   ├── waypoints.ts           # RNAV fixes and terminal waypoints
-│   │   │   └── stars.ts               # Standard Terminal Arrival Routes
-│   │   └── airports/                  # Presets (LFBT, LFBP, LFBO) and types
-│   │       ├── presets.ts
-│   │       └── types.ts
-│   ├── services/adsb/                 # ADS-B ingestion & traffic simulation
-│   │   ├── adsbService.ts
-│   │   ├── trafficGenerator.ts
-│   │   └── types.ts
-│   ├── store/                         # Zustand state management
+│   │   ├── aeronautical/              # Navigation database (airspaces, navaids, waypoints, stars)
+│   │   └── airports/                  # Airport presets (LFBT, LFBP, LFBO) and custom airport creator
+│   ├── services/
+│   │   ├── adsb/                      # Multi-feed client ingestion, processing & flight tracking
+│   │   └── radar/
+│   │       └── stcaService.ts         # Short Term Conflict Alert math & trajectory CPA projection
+│   ├── store/                         # Zustand centralized reactive stores
 │   │   ├── useAirportStore.ts
-│   │   ├── useRadarSettingsStore.ts
-│   │   ├── useTrafficStore.ts
-│   │   └── useCursorStore.ts
+│   │   ├── useRadarSettingsStore.ts   # Layer toggles, custom colors, muted conflict IDs
+│   │   ├── useTrafficStore.ts         # Active aircraft list & selection
+│   │   ├── useAlertLogStore.ts        # Transponder & STCA event log
+│   │   └── useRulerStore.ts           # Tactical ruler coordinates, distance, and bearing
 │   ├── utils/
-│   │   ├── aviationMath.ts            # Haversine (NM), Great Circle bearings, runway math, vectors
-│   │   └── icaoCountry.ts             # ICAO 24-bit hex address country & flag decoder
-│   ├── App.tsx
-│   ├── index.css
-│   └── main.tsx
-└── package.json
+│   │   ├── aviationMath.ts            # Haversine, bearing, runway polygons, speed vectors
+│   │   ├── audioAlert.ts              # Web Audio API discrete ATC warning chimes
+│   │   ├── sessionExport.ts           # CSV and JSON session export engine
+│   │   └── icaoCountry.ts             # ICAO 24-bit hex country & flag decoder
+│   ├── App.tsx                        # Master 2-second ADS-B polling lifecycle & theme sync
+│   └── index.css                      # Tailwind styling, custom scrollbars, and STCA strobe keyframes
+├── package.json
+└── vite.config.ts
 ```
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Running & Packaging
+
+### Prerequisites
+* **Node.js** v18+ (tested on Node v20 LTS)
+* **npm** v9+
 
 ### 1. Install Dependencies
 ```bash
 npm install
 ```
 
-### 2. Start the Development Server (Web Mode)
-Runs both the Express ADS-B backend proxy (`http://localhost:3001`) and the Vite client (`http://localhost:5173`) concurrently:
+### 2. Start in Development Mode (Web Browser)
+Starts both the backend aggregation server (`http://localhost:3001`) and the Vite development client (`http://localhost:5173`) concurrently:
 ```bash
 npm run dev
 ```
 Open **[http://localhost:5173](http://localhost:5173)** in your browser.
 
-### 3. Run as Windows Desktop App (Electron)
+### 3. Start in Development Mode (Electron Desktop)
+Runs the application inside the native Electron window with live hot-reloading:
 ```bash
 npm run electron:dev
 ```
 
-### 4. Build for Production
+### 4. Build Production Web Bundle
 ```bash
 npm run build
 ```
-The compiled bundle is output to `/dist`.
+Outputs the minified, production-ready web application into `/dist`.
+
+### 5. Package Standalone Windows Desktop App (`.exe` & `.zip`)
+```bash
+npm run pack
+```
+This automated packaging script performs:
+1. Production TypeScript compilation and Vite bundling (`npm run build`).
+2. Electron runtime binary copying with custom green radar icon embedding (`rcedit`).
+3. Production dependency tree pruning.
+4. Outputs the standalone portable folder and ZIP archive:
+   * **Executable Folder:** `release/v0.4/Local-ATC-Radar-win-x64/Local-ATC-Radar.exe`
+   * **Portable ZIP Archive:** `release/v0.4/Local-ATC-Radar-v0.4-Windows.zip`
+
+---
+
+## 🎮 Keyboard & Mouse Shortcuts
+
+| Control | Action |
+| :--- | :--- |
+| **Right-Click** | Start / Move / Lock the **NM Distance Ruler** on the radar scope |
+| **Escape** | Dismiss / clear the active ruler measurement |
+| **Click & Drag Tag** | Move any aircraft ATC data tag to clear overlapping traffic |
+| **Double-Click Tag** | Reset the tag position back to its default offset |
+| **Left-Click on Aircraft** | Select aircraft and open the detailed Telemetry Inspector |
+| **Click `[✕]` on Alert Banner** | Manually silence / acknowledge an active STCA conflict between two aircraft |
+| **Click `[✕]` on Map Badge** | Mute the conflict directly from the tactical badge on the radar map |
+
+---
+
+## 📄 License
+Private project for personal aviation simulation and air traffic monitoring. Built with open-source web technologies and community flight-tracking data feeds.
