@@ -4,14 +4,40 @@
 
 :root {
   color-scheme: dark;
+  --radar-bg-rgb: 10 15 20;
+  --radar-panel-rgb: 14 23 31;
+  --radar-surface-rgb: 20 32 43;
+  --radar-border-rgb: 26 51 40;
+
+  --radar-green: #00ff66;
+  --radar-green-rgb: 0 255 102;
+  --radar-green-dim: #00bb4a;
+  --radar-green-dim-rgb: 0 187 74;
+
+  --radar-cyan: #00e5ff;
+  --radar-cyan-rgb: 0 229 255;
+  --radar-cyan-dim: #0099aa;
+  --radar-cyan-dim-rgb: 0 153 170;
+
+  --radar-amber: #ffaa00;
+  --radar-amber-rgb: 255 170 0;
+
+  --radar-alert: #ff3344;
+  --radar-alert-rgb: 255 51 68;
+
+  --radar-muted: #94a8a4;
+  --radar-muted-rgb: 148 168 164;
+
+  --radar-grid: #112926;
+  --radar-grid-rgb: 17 41 38;
 }
 
 body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background-color: #0a0f14;
-  color: #00ff66;
+  background-color: rgb(var(--radar-bg-rgb));
+  color: var(--radar-green);
   font-family: 'JetBrains Mono', 'Roboto Mono', Consolas, monospace;
 }
 
@@ -113,6 +139,48 @@ body {
   animation: atc-blink 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
 
+/* Authentic ATC STCA / Conflict Alert Strobe (1.25 Hz square wave - 0 lag) */
+@keyframes stca-strobe {
+  0%, 49.9% {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(255, 34, 68, 0.85));
+  }
+  50%, 100% {
+    opacity: 0.15;
+    filter: none;
+  }
+}
+
+.stca-warning-strobe {
+  animation: stca-strobe 0.8s steps(1, end) infinite !important;
+}
+
+/* Ensure Leaflet DivIcon markers don't collapse their children into 0-width rectangles */
+.leaflet-marker-icon.star-tag,
+.leaflet-marker-icon.rwy-threshold-label,
+.leaflet-marker-icon.approach-tick-label,
+.leaflet-marker-icon.waypoint-marker,
+.leaflet-marker-icon.navaid-marker,
+.leaflet-marker-icon.arp-marker,
+.leaflet-marker-icon.stca-midpoint-marker {
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* Map Panes pointer-events handling to prevent custom panes from blocking map drag */
+.leaflet-pane {
+  pointer-events: none;
+}
+.leaflet-pane .leaflet-interactive,
+.leaflet-marker-icon,
+.leaflet-control-container,
+.leaflet-tile-pane {
+  pointer-events: auto;
+}
+
 @keyframes sweep-rotate {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -127,6 +195,10 @@ body {
    THEME CLASSIQUE / BRUT (Vintage ATC Terminal / Squared)
    ======================================================== */
 .theme-classic {
+  --radar-bg-rgb: 6 9 12;
+  --radar-panel-rgb: 12 16 21;
+  --radar-surface-rgb: 17 23 31;
+  --radar-border-rgb: 32 48 41;
   background-color: #06090c !important;
   font-family: 'JetBrains Mono', Consolas, 'Courier New', monospace !important;
 }
@@ -188,36 +260,36 @@ body {
 .theme-classic .border-radar-cyan,
 .theme-classic .border-radar-cyan\/40,
 .theme-classic .border-radar-cyan\/60 {
-  border-color: #00bcd4 !important;
+  border-color: var(--radar-cyan) !important;
 }
 
 .theme-classic .border-radar-green,
 .theme-classic .border-radar-green\/40 {
-  border-color: #00aa44 !important;
+  border-color: var(--radar-green) !important;
 }
 
 /* 5. Mechanical, utilitarian active buttons: solid inverted blocks */
 .theme-classic .bg-radar-green,
 .theme-classic .bg-radar-green-dim {
-  background-color: #00aa44 !important;
+  background-color: var(--radar-green) !important;
   color: #000000 !important;
   font-weight: 800 !important;
-  border: 1px solid #00ff66 !important;
+  border: 1px solid var(--radar-green) !important;
 }
 
 .theme-classic .bg-radar-cyan,
 .theme-classic .bg-radar-cyan-dim {
-  background-color: #00a4b8 !important;
+  background-color: var(--radar-cyan) !important;
   color: #000000 !important;
   font-weight: 800 !important;
-  border: 1px solid #00e5ff !important;
+  border: 1px solid var(--radar-cyan) !important;
 }
 
 .theme-classic .bg-radar-amber {
-  background-color: #cc8400 !important;
+  background-color: var(--radar-amber) !important;
   color: #000000 !important;
   font-weight: 800 !important;
-  border: 1px solid #ffaa00 !important;
+  border: 1px solid var(--radar-amber) !important;
 }
 
 /* Inactive buttons in classic mode */
@@ -226,7 +298,7 @@ body {
 }
 
 /* 6. Inputs & Selects: Solid flat dark, sharp 1px border */
-.theme-classic input,
+.theme-classic input:not([type="range"]),
 .theme-classic select,
 .theme-classic textarea {
   background-color: #070a0e !important;
@@ -234,7 +306,7 @@ body {
   border-radius: 0 !important;
 }
 
-.theme-classic input:focus,
+.theme-classic input:not([type="range"]):focus,
 .theme-classic select:focus {
   border-color: #00ff66 !important;
   outline: 1px solid #00ff66 !important;
@@ -306,4 +378,119 @@ body {
 .theme-classic .animate-pulse {
   animation: atc-blink 1s steps(2, start) infinite !important;
 }
+
+.theme-classic .stca-warning-strobe {
+  animation: stca-strobe 0.8s steps(1, end) infinite !important;
+  filter: none !important;
+  box-shadow: none !important;
+}
+
+/* 13. Dual Range Slider (Fused double thumb track) */
+.dual-slider-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  margin: 0;
+  outline: none;
+}
+
+.dual-slider-input::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #00e5ff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.8), 0 2px 4px rgba(0,0,0,0.7);
+  cursor: grab;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.dual-slider-input::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 14px rgba(0, 229, 255, 1);
+}
+
+.dual-slider-input::-webkit-slider-thumb:active {
+  cursor: grabbing;
+  transform: scale(1.25);
+}
+
+.dual-slider-input.thumb-amber::-webkit-slider-thumb {
+  background: #ffaa00;
+  box-shadow: 0 0 10px rgba(255, 170, 0, 0.8), 0 2px 4px rgba(0,0,0,0.7);
+}
+
+.dual-slider-input.thumb-amber::-webkit-slider-thumb:hover {
+  box-shadow: 0 0 14px rgba(255, 170, 0, 1);
+}
+
+.dual-slider-input::-moz-range-thumb {
+  pointer-events: auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #00e5ff;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.8);
+  cursor: grab;
+}
+
+.dual-slider-input.thumb-amber::-moz-range-thumb {
+  background: #ffaa00;
+  box-shadow: 0 0 10px rgba(255, 170, 0, 0.8);
+}
+
+/* Classic theme overrides for dual slider */
+.theme-classic .dual-slider-input {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+}
+
+.theme-classic .dual-slider-input::-webkit-slider-thumb {
+  border-radius: 0 !important;
+  width: 14px !important;
+  height: 22px !important;
+  background: #00e5ff !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: none !important;
+  cursor: pointer !important;
+}
+
+.theme-classic .dual-slider-input.thumb-amber::-webkit-slider-thumb {
+  background: #ffaa00 !important;
+  border: 2px solid #ffffff !important;
+}
+
+.theme-classic .dual-slider-input::-moz-range-thumb {
+  border-radius: 0 !important;
+  width: 14px !important;
+  height: 22px !important;
+  background: #00e5ff !important;
+  border: 2px solid #ffffff !important;
+}
+
+.theme-classic .dual-slider-input.thumb-amber::-moz-range-thumb {
+  background: #ffaa00 !important;
+  border: 2px solid #ffffff !important;
+}
+
+/* 14. High-contrast count badges inside active theme-classic buttons */
+.theme-classic .bg-radar-cyan span.font-black,
+.theme-classic .bg-radar-green span.font-black {
+  color: #ffffff !important;
+  background-color: #070a0e !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+
 

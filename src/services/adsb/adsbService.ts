@@ -50,17 +50,33 @@ export class AdsbService {
           throw new Error('Proxy status ' + proxyRes.status);
         }
       } catch (proxyErr) {
-        // Direct browser fallback (opendata.adsb.fi or airplanes.live)
+        // Direct browser fallback: parallel query of adsb.fi and adsb.lol
         try {
-          const directRes = await fetch(
-            `https://opendata.adsb.fi/api/v2/lat/${airport.lat}/lon/${airport.lon}/dist/${radiusNm}`
-          );
-          if (directRes.ok) {
-            const data: ReadsbResponse = await directRes.json();
-            rawList = data.ac || data.aircraft || [];
-          }
+          const [resFi, resLol] = await Promise.allSettled([
+            fetch(`https://opendata.adsb.fi/api/v2/lat/${airport.lat}/lon/${airport.lon}/dist/${radiusNm}`).then((r) =>
+              r.ok ? r.json() : null
+            ),
+            fetch(`https://api.adsb.lol/v2/point/${airport.lat}/${airport.lon}/${radiusNm}`).then((r) =>
+              r.ok ? r.json() : null
+            ),
+          ]);
+          const mergedByHex = new Map<string, ReadsbAircraft>();
+          const ingest = (data: any) => {
+            if (!data) return;
+            const list: ReadsbAircraft[] = data.ac || data.aircraft || [];
+            for (const ac of list) {
+              if (!ac || !ac.hex) continue;
+              const h = ac.hex.toUpperCase();
+              if (!mergedByHex.has(h)) {
+                mergedByHex.set(h, ac);
+              }
+            }
+          };
+          if (resFi.status === 'fulfilled') ingest(resFi.value);
+          if (resLol.status === 'fulfilled') ingest(resLol.value);
+          rawList = Array.from(mergedByHex.values());
         } catch (directErr) {
-          console.warn('Live ADS-B feed unavailable:', directErr);
+          console.warn('Live ADS-B fallback feeds unavailable:', directErr);
         }
       }
     }
@@ -101,18 +117,20 @@ export class AdsbService {
       const prev = this.prevAircraftMap.get(hex);
       let history = prev ? [...prev.history] : [];
 
-      // Add a history point if moved noticeably (> 0.05 NM or ~100m) or if first time
+      // Add a history point at most once every 15 seconds (and moved >= 0.3 NM) to keep performance lightweight
       const lastPt = history[history.length - 1];
+      const timeSinceLast = lastPt ? now - lastPt.timestamp : 999999;
       const distFromLast = lastPt ? haversineDistanceNm(lastPt.lat, lastPt.lon, raw.lat, raw.lon) : 999;
-      if (!lastPt || distFromLast >= 0.05) {
+      if (!lastPt || (timeSinceLast >= 15000 && distFromLast >= 0.3)) {
         history.push({
           lat: raw.lat,
           lon: raw.lon,
           altitudeFt: altBaro,
           timestamp: now,
         });
-        if (history.length > 5) {
-          history = history.slice(history.length - 5);
+        // Keep at most 20 points per aircraft (~5 minutes buffer) to avoid memory and rendering lag
+        if (history.length > 20) {
+          history = history.slice(history.length - 20);
         }
       }
 

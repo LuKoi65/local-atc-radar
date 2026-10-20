@@ -9,6 +9,50 @@ export type VectorLengthMinutes = 1 | 2 | 3;
 export type SidebarTab = 'list' | 'inspector';
 export type DeclutterLevel = 'normal' | 'clean' | 'minimal';
 export type GuiTheme = 'modern' | 'classic'; // 'modern' is default glowing phosphor, 'classic' is crude squared vintage ATC console
+export type TrailLengthMode = 'off' | '1min' | '3min' | 'all';
+export type TagDisplayMode = 'compact' | 'standard' | 'extended';
+
+export interface ThemeAccentColors {
+  primary: string;   // Green / Main accent
+  secondary: string; // Cyan / Secondary accent
+  amber: string;     // Amber / Caution
+  muted: string;     // Text Muted (High readability labels & secondary details)
+}
+
+export const DEFAULT_COLORS_MODERN: ThemeAccentColors = {
+  primary: '#00ff66',
+  secondary: '#00e5ff',
+  amber: '#ffaa00',
+  muted: '#94a8a4', // High readability (no more dark grey on grey)
+};
+
+export const DEFAULT_COLORS_CLASSIC: ThemeAccentColors = {
+  primary: '#00cc55',
+  secondary: '#00bcd4',
+  amber: '#cc8400',
+  muted: '#8eaba5',
+};
+
+export function hexToRgb(hex: string): string {
+  const clean = hex.replace('#', '').trim();
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const num = parseInt(full, 16);
+  if (isNaN(num)) return '0 255 102';
+  return `${(num >> 16) & 255} ${(num >> 8) & 255} ${num & 255}`;
+}
+
+export function applyThemeColorsToCss(colors: ThemeAccentColors) {
+  if (typeof document === 'undefined') return;
+  const root = document.documentElement;
+  root.style.setProperty('--radar-green', colors.primary);
+  root.style.setProperty('--radar-green-rgb', hexToRgb(colors.primary));
+  root.style.setProperty('--radar-cyan', colors.secondary);
+  root.style.setProperty('--radar-cyan-rgb', hexToRgb(colors.secondary));
+  root.style.setProperty('--radar-amber', colors.amber);
+  root.style.setProperty('--radar-amber-rgb', hexToRgb(colors.amber));
+  root.style.setProperty('--radar-muted', colors.muted);
+  root.style.setProperty('--radar-muted-rgb', hexToRgb(colors.muted));
+}
 
 export interface TagOffset {
   x: number;
@@ -65,6 +109,16 @@ interface RadarSettingsState {
   currentMetar: MetarData | null;
   guiTheme: GuiTheme;
 
+  // Custom accent colors per theme
+  customColors: {
+    modern: ThemeAccentColors;
+    classic: ThemeAccentColors;
+  };
+
+  setThemeAccentColor: (theme: GuiTheme, key: keyof ThemeAccentColors, color: string) => void;
+  resetThemeAccentColors: (theme: GuiTheme) => void;
+  setThemePreset: (theme: GuiTheme, colors: ThemeAccentColors) => void;
+
   setGuiTheme: (theme: GuiTheme) => void;
   setLanguage: (lang: Language) => void;
   setMapMode: (mode: MapMode) => void;
@@ -97,6 +151,37 @@ interface RadarSettingsState {
   setShowUserLocation: (show: boolean) => void;
   setUserLocation: (loc: { lat: number; lon: number; accuracyMeters?: number } | null) => void;
   setIsFrequencyModalOpen: (open: boolean) => void;
+  // Flight route dashed display on map
+  showFlightRouteOnMap: boolean;
+  setShowFlightRouteOnMap: (show: boolean) => void;
+  toggleFlightRouteOnMap: () => void;
+  fitRouteTrigger: number;
+  triggerFitRoute: () => void;
+
+  // STCA / Collision Proximity Alert settings
+  stcaEnabled: boolean;
+  setStcaEnabled: (enabled: boolean) => void;
+  stcaAudioEnabled: boolean;
+  setStcaAudioEnabled: (enabled: boolean) => void;
+  mutedConflictIds: string[];
+  muteConflict: (conflictId: string) => void;
+  unmuteConflict: (conflictId: string) => void;
+  clearMutedConflicts: () => void;
+
+  // Breadcrumbs & Radar History Trails
+  trailLengthMode: TrailLengthMode;
+  setTrailLengthMode: (mode: TrailLengthMode) => void;
+
+  // Radar Data Tags Customization
+  tagDisplayMode: TagDisplayMode;
+  setTagDisplayMode: (mode: TagDisplayMode) => void;
+  autoDeconflictTags: boolean;
+  setAutoDeconflictTags: (auto: boolean) => void;
+
+  // Alert Log Modal
+  alertLogModalOpen: boolean;
+  setAlertLogModalOpen: (open: boolean) => void;
+
   setTagOffset: (hex: string, offset: TagOffset) => void;
   resetTagOffset: (hex: string) => void;
   resetAllTagOffsets: () => void;
@@ -141,13 +226,99 @@ export const useRadarSettingsStore = create<RadarSettingsState>()(
   isFrequencyModalOpen: false,
   tagOffsets: {},
   currentMetar: null,
+  showFlightRouteOnMap: false,
+  fitRouteTrigger: 0,
+  setShowFlightRouteOnMap: (show) => set({ showFlightRouteOnMap: show }),
+  toggleFlightRouteOnMap: () => set((state) => ({ showFlightRouteOnMap: !state.showFlightRouteOnMap })),
+  triggerFitRoute: () => set((state) => ({ fitRouteTrigger: state.fitRouteTrigger + 1 })),
+
+  stcaEnabled: true,
+  setStcaEnabled: (enabled) => set({ stcaEnabled: enabled }),
+  stcaAudioEnabled: true,
+  setStcaAudioEnabled: (enabled) => set({ stcaAudioEnabled: enabled }),
+  mutedConflictIds: [],
+  muteConflict: (conflictId) =>
+    set((state) => ({
+      mutedConflictIds: state.mutedConflictIds.includes(conflictId)
+        ? state.mutedConflictIds
+        : [...state.mutedConflictIds, conflictId],
+    })),
+  unmuteConflict: (conflictId) =>
+    set((state) => ({
+      mutedConflictIds: state.mutedConflictIds.filter((id) => id !== conflictId),
+    })),
+  clearMutedConflicts: () => set({ mutedConflictIds: [] }),
+
+  trailLengthMode: '3min',
+  setTrailLengthMode: (mode) => set({ trailLengthMode: mode }),
+
+  tagDisplayMode: 'standard',
+  setTagDisplayMode: (mode) => set({ tagDisplayMode: mode }),
+  autoDeconflictTags: true,
+  setAutoDeconflictTags: (auto) => set({ autoDeconflictTags: auto }),
+
+  alertLogModalOpen: false,
+  setAlertLogModalOpen: (open) => set({ alertLogModalOpen: open }),
   guiTheme: (typeof window !== 'undefined' && (localStorage.getItem('atc_gui_theme') as GuiTheme)) || 'modern',
+
+  customColors: {
+    modern: { ...DEFAULT_COLORS_MODERN },
+    classic: { ...DEFAULT_COLORS_CLASSIC },
+  },
+
+  setThemeAccentColor: (theme, key, color) => {
+    set((state) => {
+      const nextThemeColors = {
+        ...state.customColors[theme],
+        [key]: color,
+      };
+      const nextCustomColors = {
+        ...state.customColors,
+        [theme]: nextThemeColors,
+      };
+      if (state.guiTheme === theme) {
+        applyThemeColorsToCss(nextThemeColors);
+      }
+      return { customColors: nextCustomColors };
+    });
+  },
+
+  resetThemeAccentColors: (theme) => {
+    set((state) => {
+      const defaultColors = theme === 'classic' ? { ...DEFAULT_COLORS_CLASSIC } : { ...DEFAULT_COLORS_MODERN };
+      const nextCustomColors = {
+        ...state.customColors,
+        [theme]: defaultColors,
+      };
+      if (state.guiTheme === theme) {
+        applyThemeColorsToCss(defaultColors);
+      }
+      return { customColors: nextCustomColors };
+    });
+  },
+
+  setThemePreset: (theme, colors) => {
+    set((state) => {
+      const nextCustomColors = {
+        ...state.customColors,
+        [theme]: { ...colors },
+      };
+      if (state.guiTheme === theme) {
+        applyThemeColorsToCss(colors);
+      }
+      return { customColors: nextCustomColors };
+    });
+  },
 
   setGuiTheme: (theme) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('atc_gui_theme', theme);
     }
-    set({ guiTheme: theme });
+    set((state) => {
+      const colors = state.customColors[theme] || (theme === 'classic' ? DEFAULT_COLORS_CLASSIC : DEFAULT_COLORS_MODERN);
+      applyThemeColorsToCss(colors);
+      return { guiTheme: theme };
+    });
   },
   setLanguage: (lang) => set({ language: lang }),
   setMapMode: (mode) => set({ mapMode: mode }),
@@ -241,6 +412,13 @@ export const useRadarSettingsStore = create<RadarSettingsState>()(
     flightsSidebarWidth: state.flightsSidebarWidth,
     flightsTab: state.flightsTab,
     tagOffsets: state.tagOffsets,
+    customColors: state.customColors,
+    showFlightRouteOnMap: state.showFlightRouteOnMap,
+    stcaEnabled: state.stcaEnabled,
+    stcaAudioEnabled: state.stcaAudioEnabled,
+    trailLengthMode: state.trailLengthMode,
+    tagDisplayMode: state.tagDisplayMode,
+    autoDeconflictTags: state.autoDeconflictTags,
   }),
 }
 ));

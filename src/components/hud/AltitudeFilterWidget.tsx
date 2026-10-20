@@ -57,17 +57,17 @@ export const AltitudeFilterWidget: React.FC = () => {
 
   return (
     <div className="relative inline-block" ref={popoverRef}>
-      {/* Trigger Button in TopBar */}
+      {/* Trigger Button in TopBar - Unified h-7 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex items-center gap-1.5 px-2 py-1 rounded border text-[11px] font-bold transition-all ${
+        className={`h-7 flex items-center gap-1.5 px-2 rounded border text-[10px] font-bold transition-all shrink-0 ${
           filterEnabled
             ? 'bg-[#291b0c] border-radar-amber text-radar-amber shadow-[0_0_8px_rgba(255,170,0,0.3)]'
             : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-green hover:border-radar-green/50'
         }`}
         title="Filtrer l'altitude du trafic radar"
       >
-        <Filter className={`w-3.5 h-3.5 ${filterEnabled ? 'text-radar-amber animate-pulse' : 'text-radar-muted'}`} />
+        <Filter className={`w-3 h-3 ${filterEnabled ? 'text-radar-amber animate-pulse' : 'text-radar-muted'}`} />
         <span>
           {filterEnabled
             ? `FL${Math.round(altitudeFilterMin / 100)} ↔ FL${Math.round(altitudeFilterMax / 100)}`
@@ -75,15 +75,17 @@ export const AltitudeFilterWidget: React.FC = () => {
         </span>
       </button>
 
-      {/* Popover Card */}
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-80 bg-[#0a0f14] border border-radar-cyan/60 rounded-md shadow-2xl p-3 z-[1100] font-mono text-radar-green select-none">
+        <div
+          style={{ backgroundColor: '#0a0f14', opacity: 1 }}
+          className="absolute left-0 top-full mt-1.5 w-80 border border-radar-cyan/60 rounded-md shadow-[0_15px_50px_rgba(0,0,0,0.99)] p-3 z-[1500] font-mono text-radar-green select-none"
+        >
           {/* Header */}
           <div className="flex items-center justify-between pb-2 border-b border-radar-border mb-3">
             <div className="flex items-center gap-2">
               <Filter className="w-4 h-4 text-radar-cyan" />
               <span className="font-bold text-radar-cyan text-xs tracking-wider">
-                FILTRE D'ALTITUDE (SLIDER)
+                FILTRE D'ALTITUDE
               </span>
             </div>
             <button
@@ -121,27 +123,32 @@ export const AltitudeFilterWidget: React.FC = () => {
             </div>
           </div>
 
-          {/* Double Range Sliders */}
-          <div className="space-y-3 mb-4 px-1">
-            {/* Visual range track */}
-            <div className="relative w-full h-2 bg-radar-surface rounded overflow-hidden">
+          {/* Fused Single-Track Dual Range Slider */}
+          <div className="space-y-2 mb-4 px-1">
+            <div className="flex justify-between items-center text-[10px] font-bold">
+              <span className="text-radar-cyan">
+                MIN : {altitudeFilterMin === 0 ? '0 ft (Sol)' : `${altitudeFilterMin.toLocaleString()} ft`}
+              </span>
+              <span className="text-radar-amber">
+                MAX : {altitudeFilterMax >= MAX_ALT_LIMIT ? `${MAX_ALT_LIMIT.toLocaleString()} ft (Max)` : `${altitudeFilterMax.toLocaleString()} ft`}
+              </span>
+            </div>
+
+            {/* Unified Groove + Gradient Active Span + 2 Thumbs */}
+            <div className="relative w-full h-8 flex items-center select-none">
+              {/* Background Groove */}
+              <div className="absolute w-full h-2.5 bg-[#0f1b16] rounded-full border border-radar-border" />
+
+              {/* Active Span between Min and Max */}
               <div
-                className="absolute top-0 bottom-0 bg-gradient-to-r from-radar-cyan via-radar-green to-radar-amber rounded"
+                className="absolute h-2.5 bg-gradient-to-r from-radar-cyan via-radar-green to-radar-amber rounded-full shadow-[0_0_8px_rgba(0,255,102,0.4)]"
                 style={{
                   left: `${minPercent}%`,
                   width: `${Math.max(2, maxPercent - minPercent)}%`,
                 }}
               />
-            </div>
 
-            {/* Slider 1: Min Altitude */}
-            <div>
-              <div className="flex justify-between text-[10px] text-radar-muted mb-1">
-                <span>Altitude Minimum :</span>
-                <span className="font-bold text-radar-cyan">
-                  {altitudeFilterMin === 0 ? '0 ft (Sol)' : `${altitudeFilterMin.toLocaleString()} ft`}
-                </span>
-              </div>
+              {/* Overlapping Input 1: Min Thumb */}
               <input
                 type="range"
                 min={0}
@@ -149,20 +156,11 @@ export const AltitudeFilterWidget: React.FC = () => {
                 step={500}
                 value={altitudeFilterMin}
                 onChange={(e) => handleMinChange(Number(e.target.value))}
-                className="w-full h-1.5 bg-radar-surface rounded-lg appearance-none cursor-pointer accent-radar-cyan"
+                className={`dual-slider-input ${altitudeFilterMin > MAX_ALT_LIMIT * 0.65 ? 'z-[25]' : 'z-[10]'}`}
+                title={`Altitude Minimum: ${altitudeFilterMin} ft`}
               />
-            </div>
 
-            {/* Slider 2: Max Altitude */}
-            <div>
-              <div className="flex justify-between text-[10px] text-radar-muted mb-1">
-                <span>Altitude Maximum :</span>
-                <span className="font-bold text-radar-amber">
-                  {altitudeFilterMax >= MAX_ALT_LIMIT
-                    ? `${MAX_ALT_LIMIT.toLocaleString()} ft (Max)`
-                    : `${altitudeFilterMax.toLocaleString()} ft`}
-                </span>
-              </div>
+              {/* Overlapping Input 2: Max Thumb */}
               <input
                 type="range"
                 min={0}
@@ -170,8 +168,18 @@ export const AltitudeFilterWidget: React.FC = () => {
                 step={500}
                 value={altitudeFilterMax}
                 onChange={(e) => handleMaxChange(Number(e.target.value))}
-                className="w-full h-1.5 bg-radar-surface rounded-lg appearance-none cursor-pointer accent-radar-amber"
+                className="dual-slider-input thumb-amber z-[20]"
+                title={`Altitude Maximum: ${altitudeFilterMax} ft`}
               />
+            </div>
+
+            {/* Quick scale ticks */}
+            <div className="flex justify-between text-[9px] text-radar-muted font-mono px-0.5">
+              <span>SOL</span>
+              <span>FL100</span>
+              <span>FL200</span>
+              <span>FL300</span>
+              <span>FL450</span>
             </div>
           </div>
 

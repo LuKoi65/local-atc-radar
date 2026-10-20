@@ -3,10 +3,20 @@ export interface FlightRoute {
   originIata?: string;
   originIcao?: string;
   originCity: string;
+  originCoord?: [number, number] | null;
   destIata?: string;
   destIcao?: string;
   destCity: string;
+  destCoord?: [number, number] | null;
   formattedRoute: string;
+  departureTimeText?: string;
+  departureStatusText?: string;
+  arrivalTimeText?: string;
+  arrivalStatusText?: string;
+  progressPercent?: number;
+  flightStatus?: string;
+  distanceElapsedNm?: number | null;
+  distanceRemainingNm?: number | null;
 }
 
 class RouteService {

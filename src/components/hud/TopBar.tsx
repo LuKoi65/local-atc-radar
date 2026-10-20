@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Compass,
   Radio,
@@ -13,13 +13,13 @@ import {
   Navigation,
   MapPin,
   Route,
-  TableProperties,
   Sparkles,
   Radar,
-  Languages,
   Crosshair,
   Headphones,
   Plane,
+  ChevronDown,
+  X,
 } from 'lucide-react';
 import { useAirportStore } from '../../store/useAirportStore';
 import {
@@ -28,7 +28,6 @@ import {
   MapMode,
   DeclutterLevel,
 } from '../../store/useRadarSettingsStore';
-import { useTrafficStore } from '../../store/useTrafficStore';
 import { TRANSLATIONS } from '../../utils/i18n';
 import { MetarWidget } from './MetarWidget';
 import { AltitudeFilterWidget } from './AltitudeFilterWidget';
@@ -56,12 +55,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   const setDataSource = useRadarSettingsStore((state) => state.setDataSource);
   const mapMode = useRadarSettingsStore((state) => state.mapMode);
   const setMapMode = useRadarSettingsStore((state) => state.setMapMode);
-  const showRangeRings = useRadarSettingsStore((state) => state.showRangeRings);
-  const setShowRangeRings = useRadarSettingsStore((state) => state.setShowRangeRings);
   const vectorLengthMin = useRadarSettingsStore((state) => state.vectorLengthMin);
   const setVectorLengthMin = useRadarSettingsStore((state) => state.setVectorLengthMin);
-  const filterEnabled = useRadarSettingsStore((state) => state.filterEnabled);
-  const setAltitudeFilter = useRadarSettingsStore((state) => state.setAltitudeFilter);
   const triggerCenter = useRadarSettingsStore((state) => state.triggerCenter);
   const detectionRangeNm = useRadarSettingsStore((state) => state.detectionRangeNm);
   const setDetectionRangeNm = useRadarSettingsStore((state) => state.setDetectionRangeNm);
@@ -78,12 +73,26 @@ export const TopBar: React.FC<TopBarProps> = ({
   const showStars = useRadarSettingsStore((state) => state.showStars);
   const setShowStars = useRadarSettingsStore((state) => state.setShowStars);
 
-  // Sidebar toggle
-  const sidebarOpen = useRadarSettingsStore((state) => state.sidebarOpen);
-  const setSidebarOpen = useRadarSettingsStore((state) => state.setSidebarOpen);
-  const activeCount = useTrafficStore((state) => state.activeCount);
+  // Aeronautical layers dropdown menu
+  const [layersMenuOpen, setLayersMenuOpen] = useState(false);
+  const layersMenuRef = useRef<HTMLDivElement>(null);
+  const activeLayersCount = [showAirspaces, showNavaids, showWaypoints, showStars].filter(Boolean).length;
 
-  // VHF Sidebar, Flights Sidebar & GPS User Location
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (layersMenuRef.current && !layersMenuRef.current.contains(e.target as Node)) {
+        setLayersMenuOpen(false);
+      }
+    };
+    if (layersMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [layersMenuOpen]);
+
+  // Lateral Sidebars & GPS
   const vhfSidebarOpen = useRadarSettingsStore((state) => state.vhfSidebarOpen);
   const setVhfSidebarOpen = useRadarSettingsStore((state) => state.setVhfSidebarOpen);
   const flightsSidebarOpen = useRadarSettingsStore((state) => state.flightsSidebarOpen);
@@ -91,29 +100,30 @@ export const TopBar: React.FC<TopBarProps> = ({
   const showUserLocation = useRadarSettingsStore((state) => state.showUserLocation);
   const setShowUserLocation = useRadarSettingsStore((state) => state.setShowUserLocation);
 
-  // Available runway ends for the current airport
   const availableRunwayEnds = currentAirport.runways.flatMap((r) => [r.end1, r.end2]);
 
   return (
-    <header className="h-12 bg-radar-panel border-b border-radar-border px-3 flex items-center justify-between relative z-[1000] select-none text-xs text-radar-green font-mono">
+    <header className="h-11 bg-radar-panel border-b border-radar-border px-2 flex items-center justify-between relative z-[1000] select-none text-[11px] text-radar-green font-mono gap-1.5">
       {/* Section Gauche : Aérodrome, Pistes, METAR */}
-      <div className="flex items-center gap-2">
-        <div className="flex items-center gap-2 font-bold text-radar-cyan border-r border-radar-border pr-2.5">
+      <div className="flex items-center gap-1.5 shrink-0">
+        <div className="h-7 flex items-center gap-1.5 font-bold text-radar-cyan border-r border-radar-border pr-2 shrink-0">
           <img
             src="/icon.png"
             alt="Local ATC Radar"
-            className="w-5 h-5 object-contain shrink-0 drop-shadow-[0_0_6px_rgba(0,255,102,0.6)]"
+            className="w-4 h-4 object-contain shrink-0 drop-shadow-[0_0_6px_rgba(0,255,102,0.6)]"
           />
-          <span className="tracking-wider font-extrabold text-radar-green">{t.appTitle}</span>
+          <span className="tracking-wider font-extrabold text-radar-green text-[10px] whitespace-nowrap">
+            {t.appTitle}
+          </span>
         </div>
 
-        {/* Sélecteur d'aérodrome */}
-        <div className="flex items-center gap-1 bg-radar-surface px-2 py-1 rounded border border-radar-border">
-          <span className="text-radar-muted font-bold text-[10px]">{t.arp} :</span>
+        {/* Sélecteur d'aérodrome (compact avec icône avion - Unified h-7) */}
+        <div className="h-7 flex items-center gap-1 bg-radar-surface px-2 rounded border border-radar-border shrink-0">
+          <Plane className="w-3 h-3 text-radar-cyan shrink-0" />
           <select
             value={currentAirport.icao}
             onChange={(e) => selectAirport(e.target.value)}
-            className="bg-transparent font-bold text-radar-green focus:outline-none cursor-pointer"
+            className="bg-transparent font-bold text-radar-green text-[10px] focus:outline-none cursor-pointer"
           >
             {airports.map((apt) => (
               <option key={apt.icao} value={apt.icao} className="bg-radar-panel text-radar-green">
@@ -123,78 +133,79 @@ export const TopBar: React.FC<TopBarProps> = ({
           </select>
         </div>
 
-        {/* Sélecteur de piste en service */}
-        <div className="flex items-center gap-1 bg-radar-surface px-2 py-1 rounded border border-radar-border">
-          <span className="text-radar-muted font-bold text-[10px]">{t.rwy} :</span>
-          <div className="flex gap-1">
+        {/* Sélecteur de piste en service - Unified h-7 */}
+        <div className="h-7 flex items-center gap-1 bg-radar-surface p-0.5 rounded border border-radar-border shrink-0">
+          <span className="text-radar-muted font-bold text-[9px] px-1">RWY</span>
+          <div className="flex items-center h-full gap-0.5">
             {availableRunwayEnds.map((rend) => {
               const isActive = rend.id === activeRunwayId;
               return (
                 <button
                   key={rend.id}
                   onClick={() => setActiveRunway(rend.id)}
-                  className={`px-1.5 py-0.5 rounded text-[11px] font-bold transition-colors ${
+                  className={`h-full px-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center ${
                     isActive
                       ? 'bg-radar-green text-radar-bg font-extrabold shadow-radar-green'
                       : 'text-radar-green hover:bg-radar-border'
                   }`}
-                  title={`Cap ${rend.heading}°`}
+                  title={`Piste ${rend.id} (Cap ${rend.heading}°)`}
                 >
-                  {rend.id} ({rend.heading}°)
+                  {rend.id}
                 </button>
               );
             })}
           </div>
         </div>
 
-        {/* Bouton Nouvel Aérodrome */}
+        {/* Bouton Nouvel Aérodrome - Unified h-7 w-7 */}
         <button
           onClick={onOpenCustomAirport}
-          className="p-1.5 rounded hover:bg-radar-surface text-radar-muted hover:text-radar-cyan transition-colors"
+          className="h-7 w-7 flex items-center justify-center rounded bg-radar-surface border border-radar-border text-radar-muted hover:text-radar-cyan hover:border-radar-cyan transition-colors shrink-0"
           title={t.addCustomAirport}
         >
-          <PlusCircle className="w-4 h-4" />
+          <PlusCircle className="w-3.5 h-3.5" />
         </button>
 
         {/* METAR Widget Météo Aérodrome */}
         <MetarWidget />
       </div>
 
-      {/* Section Centre : Portée, Déclutter & Filtres */}
-      <div className="flex items-center gap-2">
-        {/* Source de données (uniquement FLUX DIRECT & ADSBx - mode sim supprimé) */}
-        <div className="flex items-center bg-radar-surface rounded border border-radar-border p-0.5">
+      {/* Section Centre : Source, Portée, Déclutter & Filtres */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* Source de données (LIVE / ADSBx) - Unified h-7 */}
+        <div className="h-7 flex items-center bg-radar-surface rounded border border-radar-border p-0.5 shrink-0 gap-0.5">
           <button
             onClick={() => setDataSource('live')}
-            className={`px-2 py-1 rounded text-[11px] font-bold flex items-center gap-1 transition-colors ${
+            className={`h-full px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
               dataSource === 'live'
-                ? 'bg-radar-green text-radar-bg'
+                ? 'bg-radar-green text-radar-bg font-extrabold'
                 : 'text-radar-muted hover:text-radar-green'
             }`}
+            title="Flux Direct ADSB (Local / Réseau)"
           >
-            <Radio className="w-3 h-3" />
-            {t.liveFeed}
+            <Radio className="w-2.5 h-2.5" />
+            LIVE
           </button>
           <button
             onClick={() => setDataSource('adsbx')}
-            className={`px-2 py-1 rounded text-[11px] font-bold transition-colors ${
+            className={`h-full px-2 rounded text-[10px] font-bold flex items-center transition-colors ${
               dataSource === 'adsbx'
-                ? 'bg-radar-cyan text-radar-bg'
+                ? 'bg-radar-cyan text-radar-bg font-extrabold'
                 : 'text-radar-muted hover:text-radar-cyan'
             }`}
+            title="Flux ADSBx Proxy"
           >
-            {t.adsbx}
+            ADSBx
           </button>
         </div>
 
-        {/* Sélecteur de Portée Radar (jusqu'à 150 NM) */}
-        <div className="flex items-center gap-1 bg-radar-surface px-1.5 py-1 rounded border border-radar-border">
-          <Radar className="w-3.5 h-3.5 text-radar-cyan" />
-          <span className="text-radar-muted text-[10px]">{t.range} :</span>
+        {/* Sélecteur de Portée Radar - Unified h-7 */}
+        <div className="h-7 flex items-center gap-1 bg-radar-surface px-2 rounded border border-radar-border shrink-0" title={t.range}>
+          <Radar className="w-3 h-3 text-radar-cyan shrink-0" />
           <select
             value={detectionRangeNm}
             onChange={(e) => setDetectionRangeNm(Number(e.target.value))}
-            className="bg-transparent font-bold text-radar-cyan text-xs focus:outline-none cursor-pointer"
+            className="bg-transparent font-bold text-radar-cyan text-[10px] focus:outline-none cursor-pointer"
           >
             <option value={30} className="bg-radar-panel text-radar-green">30 NM</option>
             <option value={50} className="bg-radar-panel text-radar-green">50 NM</option>
@@ -204,7 +215,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           </select>
         </div>
 
-        {/* Bouton Déclutter (Normal / Épuré / Minimal) */}
+        {/* Bouton Déclutter (Épuré / Min / Norm) - Unified h-7 */}
         <button
           onClick={() => {
             const next: DeclutterLevel =
@@ -215,33 +226,32 @@ export const TopBar: React.FC<TopBarProps> = ({
                 : 'normal';
             setDeclutterLevel(next);
           }}
-          className="flex items-center gap-1 px-2 py-1 rounded bg-radar-surface border border-radar-border text-radar-cyan hover:border-radar-cyan transition-colors text-[11px] font-bold"
-          title="Niveau de désencombrement des étiquettes et points"
+          className="h-7 flex items-center gap-1.5 px-2 rounded bg-radar-surface border border-radar-border text-radar-cyan hover:border-radar-cyan transition-colors text-[10px] font-bold shrink-0"
+          title="Niveau de désencombrement / Déclutter"
         >
-          <Sparkles className="w-3 h-3" />
+          <Sparkles className="w-2.5 h-2.5 text-radar-cyan" />
           <span>
             {declutterLevel === 'clean'
-              ? t.declutterMed
+              ? 'ÉPURÉ'
               : declutterLevel === 'minimal'
-              ? t.declutterMin
-              : t.declutterNorm}
+              ? 'MIN'
+              : 'NORM'}
           </span>
         </button>
 
-        {/* Filtre Altitude Terminale (Double Slider) */}
+        {/* Filtre Altitude Terminale (Double Slider Fusionné) */}
         <AltitudeFilterWidget />
 
-        {/* Durée du vecteur vitesse (1 / 2 / 3 min) */}
-        <div className="flex items-center gap-1 bg-radar-surface px-1.5 py-1 rounded border border-radar-border">
-          <Clock className="w-3 h-3 text-radar-muted" />
-          <span className="text-radar-muted text-[10px]">{t.vector} :</span>
+        {/* Durée du vecteur vitesse (1 / 2 / 3 min) - Unified h-7 */}
+        <div className="h-7 flex items-center gap-0.5 bg-radar-surface p-0.5 rounded border border-radar-border shrink-0" title={t.vector}>
+          <Clock className="w-2.5 h-2.5 text-radar-muted shrink-0 mx-1" />
           {([1, 2, 3] as VectorLengthMinutes[]).map((m) => (
             <button
               key={m}
               onClick={() => setVectorLengthMin(m)}
-              className={`px-1 rounded text-[10px] font-bold transition-colors ${
+              className={`h-full px-1.5 rounded text-[10px] font-bold transition-colors flex items-center justify-center ${
                 vectorLengthMin === m
-                  ? 'bg-radar-cyan text-radar-bg'
+                  ? 'bg-radar-cyan text-radar-bg font-extrabold'
                   : 'text-radar-muted hover:text-radar-cyan'
               }`}
             >
@@ -251,158 +261,206 @@ export const TopBar: React.FC<TopBarProps> = ({
         </div>
       </div>
 
-      {/* Section Droite : Calques Aéronautiques, Fond de Carte, Langue & TRAFFIC */}
-      <div className="flex items-center gap-2">
-        {/* Toggles des Calques Aéronautiques */}
-        <div className="flex items-center gap-0.5 bg-radar-surface p-0.5 rounded border border-radar-border">
+      {/* Section Droite : Sous-menu Calques, Fond de Carte & Outils */}
+      <div className="flex items-center gap-1.5 shrink-0">
+        {/* Sous-menu Calques Aéronautiques - Unified h-7 */}
+        <div className="relative" ref={layersMenuRef}>
           <button
-            onClick={() => setShowAirspaces(!showAirspaces)}
-            className={`px-1.5 py-1 rounded text-[10px] font-bold transition-colors ${
-              showAirspaces
-                ? 'bg-radar-cyan/20 text-radar-cyan border border-radar-cyan/40'
-                : 'text-radar-muted hover:text-radar-cyan'
+            onClick={() => setLayersMenuOpen(!layersMenuOpen)}
+            className={`h-7 px-2 rounded text-[10px] font-bold flex items-center gap-1.5 border transition-colors shrink-0 ${
+              activeLayersCount > 0
+                ? 'bg-radar-surface border-radar-cyan text-radar-cyan shadow-[0_0_8px_rgba(0,229,255,0.2)]'
+                : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-green'
             }`}
-            title={t.airspacesTooltip}
+            title="Afficher/Masquer les calques aéronautiques"
           >
-            <Shield className="w-3 h-3 inline mr-0.5" />
-            {t.ctr}
+            <Layers className="w-3 h-3" />
+            <span>CALQUES</span>
+            <span className="bg-radar-cyan/20 text-radar-cyan text-[8px] px-1 rounded-sm border border-radar-cyan/40">
+              {activeLayersCount}/4
+            </span>
+            <ChevronDown className={`w-3 h-3 text-radar-muted transition-transform ${layersMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          <button
-            onClick={() => setShowNavaids(!showNavaids)}
-            className={`px-1.5 py-1 rounded text-[10px] font-bold transition-colors ${
-              showNavaids
-                ? 'bg-radar-cyan/20 text-radar-cyan border border-radar-cyan/40'
-                : 'text-radar-muted hover:text-radar-cyan'
-            }`}
-            title={t.navaidsTooltip}
-          >
-            <Navigation className="w-3 h-3 inline mr-0.5" />
-            {t.vor}
-          </button>
+          {/* Popover Calques - Opaque z-[1500] */}
+          {layersMenuOpen && (
+            <div
+              style={{ backgroundColor: '#0a0f14', opacity: 1 }}
+              className="absolute right-0 top-full mt-1.5 w-60 border border-radar-cyan/60 rounded-md shadow-[0_15px_50px_rgba(0,0,0,0.99)] p-2.5 z-[1500] font-mono text-radar-green select-none space-y-1.5"
+            >
+              <div className="flex items-center justify-between pb-1.5 border-b border-radar-border text-[10px] font-bold text-radar-cyan">
+                <span className="flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5" />
+                  CALQUES AÉRONAUTIQUES
+                </span>
+                <button
+                  onClick={() => setLayersMenuOpen(false)}
+                  className="text-radar-muted hover:text-radar-cyan p-0.5 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
 
-          <button
-            onClick={() => setShowWaypoints(!showWaypoints)}
-            className={`px-1.5 py-1 rounded text-[10px] font-bold transition-colors ${
-              showWaypoints
-                ? 'bg-radar-green/20 text-radar-green border border-radar-green/40'
-                : 'text-radar-muted hover:text-radar-green'
-            }`}
-            title={t.waypointsTooltip}
-          >
-            <MapPin className="w-3 h-3 inline mr-0.5" />
-            {t.fix}
-          </button>
+              {/* 1. CTR / Airspaces */}
+              <button
+                onClick={() => setShowAirspaces(!showAirspaces)}
+                className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                  showAirspaces
+                    ? 'bg-radar-cyan/20 border-radar-cyan text-radar-cyan'
+                    : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-cyan'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Shield className="w-3 h-3" />
+                  Espaces (CTR/TMA)
+                </span>
+                <span className={`text-[9px] px-1 rounded ${showAirspaces ? 'bg-radar-cyan text-radar-bg font-bold' : 'text-radar-muted'}`}>
+                  {showAirspaces ? 'ACTIF' : 'OFF'}
+                </span>
+              </button>
 
-          <button
-            onClick={() => setShowStars(!showStars)}
-            className={`px-1.5 py-1 rounded text-[10px] font-bold transition-colors ${
-              showStars
-                ? 'bg-radar-green/20 text-radar-green border border-radar-green/40'
-                : 'text-radar-muted hover:text-radar-green'
-            }`}
-            title={t.starsTooltip}
-          >
-            <Route className="w-3 h-3 inline mr-0.5" />
-            {t.star}
-          </button>
+              {/* 2. VOR / Navaids */}
+              <button
+                onClick={() => setShowNavaids(!showNavaids)}
+                className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                  showNavaids
+                    ? 'bg-radar-cyan/20 border-radar-cyan text-radar-cyan'
+                    : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-cyan'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Navigation className="w-3 h-3" />
+                  Balises VOR / NDB
+                </span>
+                <span className={`text-[9px] px-1 rounded ${showNavaids ? 'bg-radar-cyan text-radar-bg font-bold' : 'text-radar-muted'}`}>
+                  {showNavaids ? 'ACTIF' : 'OFF'}
+                </span>
+              </button>
+
+              {/* 3. Points / Waypoints */}
+              <button
+                onClick={() => setShowWaypoints(!showWaypoints)}
+                className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                  showWaypoints
+                    ? 'bg-radar-green/20 border-radar-green text-radar-green'
+                    : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-green'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <MapPin className="w-3 h-3" />
+                  Points de Report (FIX)
+                </span>
+                <span className={`text-[9px] px-1 rounded ${showWaypoints ? 'bg-radar-green text-radar-bg font-bold' : 'text-radar-muted'}`}>
+                  {showWaypoints ? 'ACTIF' : 'OFF'}
+                </span>
+              </button>
+
+              {/* 4. STARS */}
+              <button
+                onClick={() => setShowStars(!showStars)}
+                className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                  showStars
+                    ? 'bg-radar-green/20 border-radar-green text-radar-green'
+                    : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-green'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Route className="w-3 h-3" />
+                  Procédures STAR
+                </span>
+                <span className={`text-[9px] px-1 rounded ${showStars ? 'bg-radar-green text-radar-bg font-bold' : 'text-radar-muted'}`}>
+                  {showStars ? 'ACTIF' : 'OFF'}
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Sélecteur de Fond de Carte (Pure, OSM, OpenAIP) */}
+        {/* Sélecteur de Fond de Carte (Pure, OSM, OpenAIP) - Unified h-7 */}
         <select
           value={mapMode}
           onChange={(e) => setMapMode(e.target.value as MapMode)}
-          className="bg-radar-surface border border-radar-border rounded px-2 py-1 text-[11px] font-bold text-radar-green focus:outline-none cursor-pointer"
+          className="h-7 bg-radar-surface border border-radar-border rounded px-2 text-[10px] font-bold text-radar-green focus:outline-none cursor-pointer shrink-0"
         >
-          <option value="pure" className="bg-radar-panel text-radar-green">{t.mapModePure}</option>
-          <option value="osm-dark" className="bg-radar-panel text-radar-green">{t.mapModeOsm}</option>
-          <option value="openaip" className="bg-radar-panel text-radar-cyan">{t.mapModeOpenAip}</option>
+          <option value="pure" className="bg-radar-panel text-radar-green">PUR</option>
+          <option value="osm-dark" className="bg-radar-panel text-radar-green">OSM</option>
+          <option value="openaip" className="bg-radar-panel text-radar-cyan">OPENAIP</option>
         </select>
 
-        {/* Sélecteur de Langue (Français / Anglais) */}
-        <button
-          onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
-          className="px-1.5 py-1 rounded bg-radar-surface border border-radar-border text-[11px] font-bold text-radar-cyan hover:border-radar-cyan transition-colors flex items-center gap-1"
-          title="Changer la langue / Switch language"
-        >
-          <Languages className="w-3.5 h-3.5" />
-          <span>{language === 'fr' ? 'FR' : 'EN'}</span>
-        </button>
+        {/* Boutons des Tiroirs Latéraux (VHF, Vols & GPS) - Unified h-7 */}
+        <div className="h-7 flex items-center gap-0.5 bg-radar-surface p-0.5 rounded border border-radar-border shrink-0">
+          {/* Bouton Fréquences VHF ATC */}
+          <button
+            onClick={() => setVhfSidebarOpen(!vhfSidebarOpen)}
+            className={`h-full px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
+              vhfSidebarOpen
+                ? 'bg-radar-cyan text-radar-bg border border-radar-cyan font-extrabold shadow-radar-cyan'
+                : 'text-radar-muted hover:text-radar-cyan'
+            }`}
+            title="Afficher/Masquer le panneau des Fréquences Radio VHF"
+          >
+            <Headphones className="w-3 h-3" />
+            <span>VHF</span>
+          </button>
 
-        {/* Bouton Localisation GPS */}
-        <button
-          onClick={() => setShowUserLocation(!showUserLocation)}
-          className={`p-1.5 rounded border transition-colors flex items-center gap-1 text-[11px] font-bold ${
-            showUserLocation
-              ? 'bg-radar-cyan text-radar-bg border-radar-cyan font-extrabold shadow-radar-cyan'
-              : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-cyan'
-          }`}
-          title={showUserLocation ? 'Masquer ma position GPS' : 'Afficher ma position GPS sur le radar'}
-        >
-          <Crosshair className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline">GPS</span>
-        </button>
+          {/* Bouton Tableau des Vols */}
+          <button
+            onClick={() => setFlightsSidebarOpen(!flightsSidebarOpen)}
+            className={`h-full px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
+              flightsSidebarOpen
+                ? 'bg-radar-green text-radar-bg border border-radar-green font-extrabold shadow-radar-green'
+                : 'text-radar-muted hover:text-radar-green'
+            }`}
+            title="Afficher/Masquer le tableau des vols (Arrivées & Départs)"
+          >
+            <Plane className="w-3 h-3" />
+            <span>VOLS</span>
+          </button>
 
-        {/* Bouton Fréquences VHF ATC (Panneau latéral gauche) */}
-        <button
-          onClick={() => setVhfSidebarOpen(!vhfSidebarOpen)}
-          className={`px-2 py-1 rounded border text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
-            vhfSidebarOpen
-              ? 'bg-radar-cyan text-radar-bg border-radar-cyan font-extrabold shadow-radar-cyan'
-              : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-cyan'
-          }`}
-          title="Afficher/Masquer le panneau des Fréquences Radio VHF"
-        >
-          <Headphones className="w-3.5 h-3.5" />
-          <span>VHF</span>
-        </button>
+          {/* Bouton Localisation GPS */}
+          <button
+            onClick={() => setShowUserLocation(!showUserLocation)}
+            className={`h-full px-2 rounded text-[10px] font-bold flex items-center gap-1 transition-colors ${
+              showUserLocation
+                ? 'bg-radar-cyan text-radar-bg border border-radar-cyan font-extrabold shadow-radar-cyan'
+                : 'text-radar-muted hover:text-radar-cyan'
+            }`}
+            title={showUserLocation ? 'Masquer ma position GPS' : 'Afficher ma position GPS sur le radar'}
+          >
+            <Crosshair className="w-3 h-3" />
+            <span>GPS</span>
+          </button>
+        </div>
 
-        {/* Bouton Tableau des Vols (FIDS Arrivées & Départs) */}
-        <button
-          onClick={() => setFlightsSidebarOpen(!flightsSidebarOpen)}
-          className={`px-2 py-1 rounded border text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
-            flightsSidebarOpen
-              ? 'bg-radar-green text-radar-bg border-radar-green font-extrabold shadow-radar-green'
-              : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-green'
-          }`}
-          title="Afficher/Masquer le tableau des vols (Arrivées & Départs)"
-        >
-          <Plane className="w-3.5 h-3.5" />
-          <span>VOLS</span>
-        </button>
+        {/* Actions Rapides : Recentrer, Langue, Paramètres - Unified h-7 */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Bouton Recentrer */}
+          <button
+            onClick={triggerCenter}
+            className="h-7 w-7 flex items-center justify-center rounded bg-radar-surface border border-radar-border text-radar-muted hover:text-radar-green hover:border-radar-green transition-colors shrink-0"
+            title={t.recenter}
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
 
-        {/* Bouton Recentrer */}
-        <button
-          onClick={triggerCenter}
-          className="p-1.5 rounded bg-radar-surface border border-radar-border text-radar-muted hover:text-radar-green hover:border-radar-green transition-colors"
-          title={t.recenter}
-        >
-          <Maximize2 className="w-3.5 h-3.5" />
-        </button>
+          {/* Sélecteur de Langue rapide */}
+          <button
+            onClick={() => setLanguage(language === 'fr' ? 'en' : 'fr')}
+            className="h-7 px-2 flex items-center justify-center rounded bg-radar-surface border border-radar-border text-[10px] font-bold text-radar-cyan hover:border-radar-cyan transition-colors shrink-0"
+            title="Changer la langue / Switch language"
+          >
+            {language.toUpperCase()}
+          </button>
 
-        {/* Bouton Paramètres */}
-        <button
-          onClick={onOpenSettings}
-          className="p-1.5 rounded bg-radar-surface border border-radar-border text-radar-muted hover:text-radar-cyan hover:border-radar-cyan transition-colors"
-          title={t.settings}
-        >
-          <Sliders className="w-3.5 h-3.5" />
-        </button>
-
-        {/* Bouton TRAFFIC (Renommé comme demandé) */}
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className={`px-2.5 py-1 rounded border text-[11px] font-bold flex items-center gap-1.5 transition-colors ${
-            sidebarOpen
-              ? 'bg-radar-cyan text-radar-bg border-radar-cyan font-extrabold shadow-radar-cyan'
-              : 'bg-radar-surface border-radar-border text-radar-muted hover:text-radar-cyan'
-          }`}
-          title="Afficher/Masquer le menu Trafic"
-        >
-          <TableProperties className="w-3.5 h-3.5" />
-          <span>TRAFFIC</span>
-          <span className="bg-black/30 px-1 rounded text-[10px]">{activeCount}</span>
-        </button>
+          {/* Bouton Paramètres */}
+          <button
+            onClick={onOpenSettings}
+            className="h-7 w-7 flex items-center justify-center rounded bg-radar-surface border border-radar-border text-radar-muted hover:text-radar-cyan hover:border-radar-cyan transition-colors shrink-0"
+            title={t.settings}
+          >
+            <Sliders className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
     </header>
   );

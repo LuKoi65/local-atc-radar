@@ -138,14 +138,14 @@ export const FlightsSidebar: React.FC = () => {
     setSidebarTab('inspector');
   };
 
-  // When collapsed: show toggle pill on left side below VHF
+  // When collapsed: show toggle pill on left side below VHF with unified width and styling
   if (!flightsSidebarOpen) {
     const totalFlights = (correlatedArrivals.length || 0) + (correlatedDepartures.length || 0);
     return (
       <button
         onClick={() => setFlightsSidebarOpen(true)}
         style={{ left: vhfSidebarOpen ? `${vhfSidebarWidth}px` : '0px' }}
-        className="absolute top-[230px] bg-radar-panel border-r border-y border-radar-border hover:border-radar-cyan px-2 py-4 rounded-r-md shadow-2xl z-[460] flex flex-col items-center gap-2 text-radar-cyan hover:text-white transition-all duration-150"
+        className="absolute top-[230px] w-9 bg-radar-panel border-r border-y border-radar-border hover:border-radar-cyan py-3.5 px-1 rounded-r-md shadow-2xl z-[460] flex flex-col items-center justify-center gap-2 text-radar-cyan hover:text-white transition-all duration-150"
         title="Ouvrir le tableau des vols (Arrivées & Départs)"
       >
         <Plane className="w-4 h-4 text-radar-cyan animate-pulse" />
@@ -153,7 +153,7 @@ export const FlightsSidebar: React.FC = () => {
           VOLS ({currentAirport.icao})
         </span>
         {totalFlights > 0 && (
-          <span className="bg-radar-cyan/20 text-radar-cyan text-[9px] px-1 py-0.5 rounded font-mono font-bold border border-radar-cyan/40">
+          <span className="bg-radar-cyan/20 text-radar-cyan text-[9px] px-1 py-0.5 rounded font-mono font-bold border border-radar-cyan/40 min-w-[20px] text-center">
             {totalFlights}
           </span>
         )}
@@ -162,10 +162,10 @@ export const FlightsSidebar: React.FC = () => {
     );
   }
 
-  // Vertical position depends on whether VHF sidebar is also open
+  // Flush top-to-bottom layout with zero map gaps
   const containerClasses = vhfSidebarOpen
-    ? 'top-[50%] bottom-8 border-t border-radar-border'
-    : 'top-12 bottom-8';
+    ? 'top-[50%] bottom-0 border-t border-radar-border'
+    : 'top-0 bottom-0';
 
   return (
     <aside
@@ -253,7 +253,13 @@ export const FlightsSidebar: React.FC = () => {
           >
             <PlaneLanding className="w-3.5 h-3.5" />
             <span>ARRIVÉES</span>
-            <span className="text-[10px] bg-radar-surface/80 px-1.5 py-0.2 rounded border border-current/20">
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-black border transition-all ${
+                flightsTab === 'arrivals'
+                  ? 'bg-[#060a0f] text-white border-white/50 shadow-sm'
+                  : 'bg-radar-surface text-radar-muted border-radar-border'
+              }`}
+            >
               {correlatedArrivals.length}
             </span>
           </button>
@@ -268,7 +274,13 @@ export const FlightsSidebar: React.FC = () => {
           >
             <PlaneTakeoff className="w-3.5 h-3.5" />
             <span>DÉPARTS</span>
-            <span className="text-[10px] bg-radar-surface/80 px-1.5 py-0.2 rounded border border-current/20">
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-black border transition-all ${
+                flightsTab === 'departures'
+                  ? 'bg-[#060a0f] text-white border-white/50 shadow-sm'
+                  : 'bg-radar-surface text-radar-muted border-radar-border'
+              }`}
+            >
               {correlatedDepartures.length}
             </span>
           </button>

@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Marker, Circle, Polyline } from 'react-leaflet';
+import React, { useEffect, useRef } from 'react';
+import { Marker, Circle, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { useRadarSettingsStore } from '../../store/useRadarSettingsStore';
 import { useAirportStore } from '../../store/useAirportStore';
@@ -11,36 +11,83 @@ export const UserLocationLayer: React.FC = () => {
   const setUserLocation = useRadarSettingsStore((state) => state.setUserLocation);
   const currentAirport = useAirportStore((state) => state.currentAirport);
   const getActiveRunwayEnd = useAirportStore((state) => state.getActiveRunwayEnd);
+  const map = useMap();
 
   // Toggle tag display on click only (uncluttered by default)
   const [isTagVisible, setIsTagVisible] = React.useState(false);
+  const hasCenteredRef = useRef(false);
 
-  // Watch position when feature is enabled
+  // Auto-center map when GPS location is acquired and user enabled GPS
   useEffect(() => {
-    if (!showUserLocation || !navigator.geolocation) {
+    if (showUserLocation && userLocation && !hasCenteredRef.current) {
+      hasCenteredRef.current = true;
+      map.flyTo([userLocation.lat, userLocation.lon], Math.max(map.getZoom(), 11), {
+        duration: 0.8,
+      });
+    }
+    if (!showUserLocation) {
+      hasCenteredRef.current = false;
+    }
+  }, [showUserLocation, userLocation, map]);
+
+  // Watch position when feature is enabled (with native backend fallback for Electron desktop)
+  useEffect(() => {
+    if (!showUserLocation) {
       return;
     }
 
-    const watchId = navigator.geolocation.watchPosition(
-      (pos) => {
-        setUserLocation({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-          accuracyMeters: pos.coords.accuracy,
-        });
-      },
-      (err) => {
-        console.warn('[GPS] Geolocation error or permission denied:', err.message);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 5000,
+    let isCancelled = false;
+
+    // Immediately fetch from backend API (uses native Windows Location API or IP fallback)
+    const fetchBackendLocation = async () => {
+      try {
+        const res = await fetch('/api/geolocation');
+        if (res.ok) {
+          const data = await res.json();
+          if (!isCancelled && data.lat && data.lon) {
+            setUserLocation({
+              lat: data.lat,
+              lon: data.lon,
+              accuracyMeters: data.accuracyMeters,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[GPS] Backend location fetch failed:', err);
       }
-    );
+    };
+
+    fetchBackendLocation();
+
+    // Also watch navigator.geolocation if available (standard browser support)
+    let watchId: number | null = null;
+    if (navigator.geolocation) {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          if (!isCancelled) {
+            setUserLocation({
+              lat: pos.coords.latitude,
+              lon: pos.coords.longitude,
+              accuracyMeters: pos.coords.accuracy,
+            });
+          }
+        },
+        (err) => {
+          console.warn('[GPS] navigator.geolocation note:', err.message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 5000,
+        }
+      );
+    }
 
     return () => {
-      navigator.geolocation.clearWatch(watchId);
+      isCancelled = true;
+      if (watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
     };
   }, [showUserLocation, setUserLocation]);
 

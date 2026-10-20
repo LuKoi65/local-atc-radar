@@ -19,6 +19,12 @@ export const RunwayCorridor: React.FC = () => {
   );
   const showIlsFeather = useRadarSettingsStore((state) => state.showIlsFeather);
   const declutterLevel = useRadarSettingsStore((state) => state.declutterLevel);
+  const guiTheme = useRadarSettingsStore((state) => state.guiTheme);
+  const customColors = useRadarSettingsStore((state) => state.customColors);
+
+  const activeColors = guiTheme === 'classic' ? customColors?.classic : customColors?.modern;
+  const primaryColor = activeColors?.primary || '#00ff66';
+  const secondaryColor = activeColors?.secondary || '#00e5ff';
 
   const activeRunwayEnd = getActiveRunwayEnd();
   const isClean = declutterLevel === 'clean' || declutterLevel === 'minimal';
@@ -82,11 +88,11 @@ export const RunwayCorridor: React.FC = () => {
         <Polygon
           positions={featherCoords}
           pathOptions={{
-            color: '#00e5ff',
+            color: secondaryColor,
             weight: 1,
             dashArray: '3, 4',
             opacity: isClean ? 0.3 : 0.45,
-            fillColor: '#00e5ff',
+            fillColor: secondaryColor,
             fillOpacity: isClean ? 0.03 : 0.05,
           }}
         />
@@ -99,7 +105,7 @@ export const RunwayCorridor: React.FC = () => {
           <Polyline
             positions={approachData.centerline}
             pathOptions={{
-              color: '#00ff66',
+              color: primaryColor,
               weight: 1.2,
               opacity: isClean ? 0.5 : 0.7,
               dashArray: '5, 5',
@@ -114,7 +120,7 @@ export const RunwayCorridor: React.FC = () => {
               tick.isMajor && declutterLevel !== 'minimal'
                 ? L.divIcon({
                     className: 'approach-tick-label',
-                    html: `<div style="color: #00ff66; font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace; opacity: ${isClean ? 0.75 : 0.9}; transform: translate(4px, -5px);">${tick.distanceNm}</div>`,
+                    html: `<div style="display: inline-block; width: max-content; color: ${primaryColor}; font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace; opacity: ${isClean ? 0.75 : 0.9}; transform: translate(4px, -5px); white-space: nowrap;">${tick.distanceNm}</div>`,
                     iconSize: [0, 0],
                     iconAnchor: [0, 0],
                   })
@@ -125,7 +131,7 @@ export const RunwayCorridor: React.FC = () => {
                 <Polyline
                   positions={tickPositions}
                   pathOptions={{
-                    color: tick.isMajor ? '#00ff66' : '#00bb4a',
+                    color: primaryColor,
                     weight: tick.isMajor ? 1.5 : 0.8,
                     opacity: tick.isMajor ? (isClean ? 0.6 : 0.8) : 0.3,
                   }}
@@ -147,11 +153,11 @@ export const RunwayCorridor: React.FC = () => {
       {runwayPolygons.map(({ rwy, coords, isActive }) => {
         const threshold1Icon = L.divIcon({
           className: 'rwy-threshold-label',
-          html: `<div style="color: ${
-            rwy.end1.id === activeRunwayId ? '#00ff66' : '#009944'
-          }; font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; background: rgba(10,15,20,0.85); border: 1px solid ${
-            rwy.end1.id === activeRunwayId ? '#00ff66' : '#1a3328'
-          }; padding: 0 2px; border-radius: 2px; transform: translate(-50%, -50%);">${
+          html: `<div style="display: inline-flex; align-items: center; justify-content: center; width: max-content; color: ${
+            rwy.end1.id === activeRunwayId ? primaryColor : '#009944'
+          }; font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; background: rgba(8,14,20,0.92); border: 1px solid ${
+            rwy.end1.id === activeRunwayId ? primaryColor : '#1a3328'
+          }; padding: 1px 4px; border-radius: 2px; transform: translate(-50%, -50%); white-space: nowrap;">${
             rwy.end1.id
           }</div>`,
           iconSize: [0, 0],
@@ -160,11 +166,11 @@ export const RunwayCorridor: React.FC = () => {
 
         const threshold2Icon = L.divIcon({
           className: 'rwy-threshold-label',
-          html: `<div style="color: ${
-            rwy.end2.id === activeRunwayId ? '#00ff66' : '#009944'
-          }; font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; background: rgba(10,15,20,0.85); border: 1px solid ${
-            rwy.end2.id === activeRunwayId ? '#00ff66' : '#1a3328'
-          }; padding: 0 2px; border-radius: 2px; transform: translate(-50%, -50%);">${
+          html: `<div style="display: inline-flex; align-items: center; justify-content: center; width: max-content; color: ${
+            rwy.end2.id === activeRunwayId ? primaryColor : '#009944'
+          }; font-size: 9px; font-weight: 700; font-family: 'JetBrains Mono', monospace; background: rgba(8,14,20,0.92); border: 1px solid ${
+            rwy.end2.id === activeRunwayId ? primaryColor : '#1a3328'
+          }; padding: 1px 4px; border-radius: 2px; transform: translate(-50%, -50%); white-space: nowrap;">${
             rwy.end2.id
           }</div>`,
           iconSize: [0, 0],
@@ -176,7 +182,7 @@ export const RunwayCorridor: React.FC = () => {
             <Polygon
               positions={coords}
               pathOptions={{
-                color: isActive ? '#00ff66' : '#00aa55',
+                color: isActive ? primaryColor : '#00aa55',
                 weight: isActive ? 1.8 : 1,
                 fillColor: '#0a1a15',
                 fillOpacity: 0.8,
@@ -187,11 +193,13 @@ export const RunwayCorridor: React.FC = () => {
               position={[rwy.end1.threshold.lat, rwy.end1.threshold.lon]}
               icon={threshold1Icon}
               interactive={false}
+              zIndexOffset={-900}
             />
             <Marker
               position={[rwy.end2.threshold.lat, rwy.end2.threshold.lon]}
               icon={threshold2Icon}
               interactive={false}
+              zIndexOffset={-900}
             />
           </React.Fragment>
         );

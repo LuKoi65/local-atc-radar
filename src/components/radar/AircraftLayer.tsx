@@ -3,8 +3,9 @@ import { Marker, Polyline, CircleMarker } from 'react-leaflet';
 import L from 'leaflet';
 import { Aircraft } from '../../services/adsb/types';
 import { useTrafficStore } from '../../store/useTrafficStore';
-import { useRadarSettingsStore } from '../../store/useRadarSettingsStore';
+import { useRadarSettingsStore, TagOffset } from '../../store/useRadarSettingsStore';
 import { useAirportStore } from '../../store/useAirportStore';
+import { detectStcaConflicts } from '../../services/radar/stcaService';
 import {
   calculateSpeedVectorEnd,
   formatAltitude,
@@ -12,6 +13,59 @@ import {
   formatVerticalTrend,
   inspectSquawk,
 } from '../../utils/aviationMath';
+
+/**
+ * Calculates optimal 4-quadrant tag leader line placement
+ * to automatically prevent overlapping between proximate aircraft.
+ */
+function getSmartTagOffset(
+  ac: Aircraft,
+  allAircraft: Aircraft[],
+  manualOffset?: TagOffset
+): TagOffset {
+  if (manualOffset) return manualOffset;
+
+  // 4 Quadrants: Top-Right (default), Top-Left, Bottom-Right, Bottom-Left
+  const CANDIDATES: { offset: TagOffset; dxNm: number; dyNm: number }[] = [
+    { offset: { x: 38, y: -38 }, dxNm: 1.5, dyNm: 1.5 },
+    { offset: { x: -88, y: -38 }, dxNm: -2.5, dyNm: 1.5 },
+    { offset: { x: 38, y: 35 }, dxNm: 1.5, dyNm: -1.5 },
+    { offset: { x: -88, y: 35 }, dxNm: -2.5, dyNm: -1.5 },
+  ];
+
+  // Nearby aircraft within ~8 NM
+  const neighbors = allAircraft.filter(
+    (other) =>
+      other.hex !== ac.hex &&
+      Math.abs(other.lat - ac.lat) < 0.14 &&
+      Math.abs(other.lon - ac.lon) < 0.2
+  );
+
+  if (neighbors.length === 0) {
+    return CANDIDATES[0].offset;
+  }
+
+  let bestScore = -Infinity;
+  let bestOffset = CANDIDATES[0].offset;
+
+  for (const cand of CANDIDATES) {
+    let minDistanceToNeighbor = Infinity;
+    for (const nb of neighbors) {
+      const dLat = (nb.lat - ac.lat) * 60;
+      const dLon = (nb.lon - ac.lon) * 60 * Math.cos((ac.lat * Math.PI) / 180);
+      const distFromTag = Math.hypot(dLon - cand.dxNm, dLat - cand.dyNm);
+      if (distFromTag < minDistanceToNeighbor) {
+        minDistanceToNeighbor = distFromTag;
+      }
+    }
+    if (minDistanceToNeighbor > bestScore) {
+      bestScore = minDistanceToNeighbor;
+      bestOffset = cand.offset;
+    }
+  }
+
+  return bestOffset;
+}
 
 export const AircraftLayer: React.FC = () => {
   const aircraftList = useTrafficStore((state) => state.aircraftList);
@@ -24,7 +78,29 @@ export const AircraftLayer: React.FC = () => {
   const altMax = useRadarSettingsStore((state) => state.altitudeFilterMax);
   const tagOffsets = useRadarSettingsStore((state) => state.tagOffsets);
   const guiTheme = useRadarSettingsStore((state) => state.guiTheme);
+  const customColors = useRadarSettingsStore((state) => state.customColors);
   const currentAirport = useAirportStore((state) => state.currentAirport);
+
+  // New modules settings
+  const stcaEnabled = useRadarSettingsStore((state) => state.stcaEnabled);
+  const mutedConflictIds = useRadarSettingsStore((state) => state.mutedConflictIds);
+  const trailLengthMode = useRadarSettingsStore((state) => state.trailLengthMode);
+  const tagDisplayMode = useRadarSettingsStore((state) => state.tagDisplayMode);
+  const autoDeconflictTags = useRadarSettingsStore((state) => state.autoDeconflictTags);
+
+  const activeColors = guiTheme === 'classic' ? customColors?.classic : customColors?.modern;
+  const primaryColor = activeColors?.primary || '#00ff66';
+  const secondaryColor = activeColors?.secondary || '#00e5ff';
+  const amberColor = activeColors?.amber || '#ffaa00';
+  const mutedColor = activeColors?.muted || '#94a8a4';
+
+  // Conflict detection for visual flashing
+  const { conflictHexMap } = useMemo(() => {
+    if (!stcaEnabled || aircraftList.length < 2) {
+      return { conflictHexMap: new Map() };
+    }
+    return detectStcaConflicts(aircraftList, mutedConflictIds);
+  }, [aircraftList, stcaEnabled, mutedConflictIds]);
 
   // Filter aircraft by altitude if filter is active
   const visibleAircraft = useMemo(() => {
@@ -38,26 +114,37 @@ export const AircraftLayer: React.FC = () => {
     });
   }, [aircraftList, filterEnabled, altMin, altMax]);
 
+  const now = Date.now();
+
   return (
     <>
       {visibleAircraft.map((ac) => {
         const isSelected = ac.hex === selectedHex;
         const squawkInfo = inspectSquawk(ac.squawk);
         const isEmergency = squawkInfo.isEmergency;
+        const conflictLevel = conflictHexMap.get(ac.hex);
 
-        // Theme colors
-        let mainColor = '#00ff66'; // phosphor green
-        let dataTagBg = 'rgba(10, 20, 16, 0.92)';
-        let borderCol = 'rgba(0, 255, 102, 0.45)';
+        // Theme colors & STCA alert styles
+        let mainColor = primaryColor;
+        let dataTagBg = 'rgba(8, 14, 20, 0.96)';
+        let borderCol = primaryColor;
 
         if (isEmergency) {
-          mainColor = '#ff3344'; // emergency red
-          dataTagBg = 'rgba(40, 10, 15, 0.95)';
+          mainColor = '#ff3344';
+          dataTagBg = 'rgba(40, 10, 15, 0.96)';
           borderCol = '#ff3344';
+        } else if (conflictLevel === 'warning') {
+          mainColor = '#ff2244';
+          dataTagBg = 'rgba(45, 10, 15, 0.96)';
+          borderCol = '#ff2244';
+        } else if (conflictLevel === 'caution') {
+          mainColor = '#ffaa00';
+          dataTagBg = 'rgba(35, 20, 10, 0.96)';
+          borderCol = '#ffaa00';
         } else if (isSelected) {
-          mainColor = '#00e5ff'; // cyan for selected
+          mainColor = secondaryColor;
           dataTagBg = 'rgba(10, 25, 35, 0.96)';
-          borderCol = '#00e5ff';
+          borderCol = secondaryColor;
         }
 
         // Speed leader calculation
@@ -78,11 +165,92 @@ export const AircraftLayer: React.FC = () => {
             ? `<img src="https://flagcdn.com/20x15/${ac.countryCode.toLowerCase()}.png" alt="${ac.country || ac.countryCode}" title="${ac.country || ac.countryCode}" style="width: 13px; height: 9px; object-fit: cover; display: inline-block; vertical-align: middle; margin-right: 3px; border-radius: 1px; border: 0.5px solid rgba(255,255,255,0.3);" onerror="this.style.display='none'" />`
             : '';
 
-        // Movable tag offset from store
-        const offset = tagOffsets[ac.hex] || { x: 38, y: -38 };
+        // Dynamic anti-overlap or manual tag offset
+        const offset = autoDeconflictTags
+          ? getSmartTagOffset(ac, visibleAircraft, tagOffsets[ac.hex])
+          : tagOffsets[ac.hex] || { x: 38, y: -38 };
 
-        // HTML icon for target blip + dynamic leader line + movable 3-line data tag
+        // HTML icon for target blip + dynamic leader line + customizable ATC data tag
         const isClassic = guiTheme === 'classic';
+
+        // Filter history breadcrumbs according to trailLengthMode (capped to 3-8 dots max for high FPS performance)
+        const maxDots = trailLengthMode === '1min' ? 3 : trailLengthMode === '3min' ? 5 : 8;
+        const historyPoints = (ac.history || [])
+          .filter((pt) => {
+            if (trailLengthMode === 'off') return false;
+            if (trailLengthMode === '1min') return now - pt.timestamp <= 60000;
+            if (trailLengthMode === '3min') return now - pt.timestamp <= 180000;
+            return true;
+          })
+          .slice(-maxDots);
+
+        // Generate lines based on tagDisplayMode (compact / standard / extended)
+        let tagBodyHtml = '';
+        if (tagDisplayMode === 'compact') {
+          tagBodyHtml = `
+            <div style="font-weight: 800; letter-spacing: 0.5px;">${ac.flight}</div>
+            <div style="display: flex; gap: 4px; align-items: center; color: ${isSelected ? '#ffffff' : mainColor}; font-weight: 700;">
+              <span>${altStr}</span>
+              <span style="color: ${trend.symbol === '↑' ? secondaryColor : trend.symbol === '↓' ? amberColor : mutedColor}; font-size: 11px;">${trend.symbol}</span>
+            </div>
+          `;
+        } else if (tagDisplayMode === 'extended') {
+          const speedExtra = ac.iasKts ? ` IAS:${ac.iasKts}` : ac.mach ? ` M${ac.mach.toFixed(2)}` : '';
+          tagBodyHtml = `
+            <!-- Line 1: Flag, Callsign, Type -->
+            <div style="display: flex; justify-content: space-between; align-items: baseline; font-weight: 700;">
+              <span>${flagHtml}${ac.flight}</span>
+              <span style="font-size: 9.5px; color: ${secondaryColor};">${ac.type}</span>
+            </div>
+            <!-- Line 2: Altitude, Trend, Speed & Mach -->
+            <div style="display: flex; gap: 4px; align-items: center; color: ${isSelected ? '#ffffff' : mainColor}; font-weight: 700;">
+              <span>${altStr}</span>
+              <span style="color: ${trend.symbol === '↑' ? secondaryColor : trend.symbol === '↓' ? amberColor : mutedColor}; font-size: 12px; font-weight: 800;">${trend.symbol}</span>
+              <span style="margin-left: auto;">${spdStr} <span style="font-size: 8.5px; opacity: 0.75;">${speedExtra}</span></span>
+            </div>
+            <!-- Line 3: Reg, Squawk, Operator -->
+            <div style="font-size: 9px; opacity: 0.85; display: flex; justify-content: space-between; align-items: center; margin-top: 1px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1px;">
+              <span>${ac.registration || ''} SQ:${ac.squawk}</span>
+              <span style="margin-left: 4px; max-width: 60px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.8;">${ac.operator || ''}</span>
+            </div>
+          `;
+        } else {
+          // Standard (3-line default)
+          tagBodyHtml = `
+            <!-- Line 1: Callsign & Type -->
+            <div style="display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; letter-spacing: 0.5px;">
+              <span>${ac.flight}</span>
+              <span style="opacity: 0.9; margin-left: 6px; font-size: 10px; color: ${secondaryColor};">${ac.type}</span>
+            </div>
+
+            <!-- Line 2: Altitude, Trend, Ground Speed -->
+            <div style="display: flex; gap: 4px; align-items: center; color: ${isSelected ? '#ffffff' : mainColor}; font-weight: 700;">
+              <span>${altStr}</span>
+              <span style="color: ${trend.symbol === '↑' ? secondaryColor : trend.symbol === '↓' ? amberColor : mutedColor}; font-size: 12px; font-weight: 800;">
+                ${trend.symbol}
+              </span>
+              <span style="margin-left: auto;">${spdStr}</span>
+            </div>
+
+            <!-- Line 3: Squawk, Flag / Alert -->
+            <div style="font-size: 9px; opacity: 0.85; display: flex; justify-content: space-between; align-items: center; margin-top: 1px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1px;">
+              <span>SQ:${ac.squawk}</span>
+              <span style="margin-left: 4px; display: inline-flex; align-items: center;">
+                ${flagHtml}
+                ${
+                  isEmergency
+                    ? `<span style="color: #ff3344; font-weight: bold;" class="stca-warning-strobe">${squawkInfo.alertType}</span>`
+                    : conflictLevel === 'warning'
+                    ? `<span style="background: #ff2244; color: #fff; padding: 0 3px; border-radius: 1px; font-weight: 900;" class="stca-warning-strobe">STCA</span>`
+                    : conflictLevel === 'caution'
+                    ? `<span style="background: #ffaa00; color: #000; padding: 0 3px; border-radius: 1px; font-weight: 900;">PROX</span>`
+                    : `<span style="opacity: 0.7;">${ac.isGround ? 'GND' : 'AIR'}</span>`
+                }
+              </span>
+            </div>
+          `;
+        }
+
         const iconHtml = `
           <div class="relative pointer-events-auto select-none" style="width: 0; height: 0;">
             <!-- Target Blip Center at (0, 0) -->
@@ -92,14 +260,21 @@ export const AircraftLayer: React.FC = () => {
                         ${isClassic ? '' : `box-shadow: 0 0 8px ${mainColor};`} cursor: pointer;">
             </div>
 
-            <!-- Selected Acquisition Brackets (Square reticle in classic mode, rotating circle in modern) -->
+            <!-- STCA Conflict Hazard Reticle (Square Target Brackets) -->
+            ${
+              conflictLevel === 'warning'
+                ? `<div class="stca-warning-strobe" style="position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; border: 2px solid #ff2244; pointer-events: none;"></div>`
+                : ''
+            }
+
+            <!-- Selected Acquisition Brackets -->
             ${
               isSelected
                 ? isClassic
                   ? `<div style="position: absolute; left: -11px; top: -11px; width: 22px; height: 22px;
-                                border: 1.5px solid #00e5ff; pointer-events: none;"></div>`
+                                border: 1.5px solid ${secondaryColor}; pointer-events: none;"></div>`
                   : `<div class="animate-spin" style="position: absolute; left: -14px; top: -14px; width: 28px; height: 28px;
-                                border: 1.5px dashed #00e5ff; border-radius: 50%; pointer-events: none;"></div>`
+                                border: 1.5px dashed ${secondaryColor}; border-radius: 50%; pointer-events: none;"></div>`
                 : ''
             }
 
@@ -109,43 +284,17 @@ export const AircraftLayer: React.FC = () => {
                     stroke="${mainColor}" stroke-width="${isClassic ? '1' : '1.2'}" stroke-dasharray="${isSelected ? 'none' : '2, 2'}" opacity="0.85" />
             </svg>
 
-            <!-- Movable 3-Line ATC Data Tag -->
+            <!-- Movable & Customizable ATC Data Tag -->
             <div data-drag-hex="${ac.hex}"
                  title="Drag to move tag | Double-click to reset position"
+                 class="${conflictLevel === 'warning' ? 'stca-warning-strobe' : ''}"
                  style="position: absolute; left: ${offset.x}px; top: ${offset.y}px; 
                         background: ${isClassic ? '#070c0a' : dataTagBg}; border: ${isClassic ? '1px solid ' + borderCol : '1.5px solid ' + borderCol};
                         border-radius: ${isClassic ? '0px' : '2px'}; padding: 2px 6px; font-family: 'JetBrains Mono', Consolas, monospace;
                         font-size: 11px; line-height: 1.25; color: ${mainColor};
-                        box-shadow: ${isClassic ? 'none' : '0 3px 10px rgba(0,0,0,0.85)'}; min-width: 90px; z-index: ${isSelected ? 1000 : 500};
+                        box-shadow: ${isClassic ? 'none' : '0 3px 12px rgba(0,0,0,0.95)'}; min-width: ${tagDisplayMode === 'compact' ? '70px' : '90px'}; z-index: ${isSelected ? 1000 : 500};
                         cursor: grab; user-select: none;">
-              
-              <!-- Line 1: Callsign & Type -->
-              <div style="display: flex; justify-content: space-between; align-items: baseline; font-weight: 700; letter-spacing: 0.5px;">
-                <span>${ac.flight}</span>
-                <span style="opacity: 0.9; margin-left: 6px; font-size: 10px; color: #00e5ff;">${ac.type}</span>
-              </div>
-
-              <!-- Line 2: Altitude, Trend, Ground Speed -->
-              <div style="display: flex; gap: 4px; align-items: center; color: ${isSelected ? '#ffffff' : mainColor}; font-weight: 700;">
-                <span>${altStr}</span>
-                <span style="color: ${trend.symbol === '↑' ? '#00e5ff' : trend.symbol === '↓' ? '#ffaa00' : '#4a6764'}; font-size: 12px; font-weight: 800;">
-                  ${trend.symbol}
-                </span>
-                <span style="margin-left: auto;">${spdStr}</span>
-              </div>
-
-              <!-- Line 3: Squawk, Flag / Alert -->
-              <div style="font-size: 9px; opacity: 0.85; display: flex; justify-content: space-between; align-items: center; margin-top: 1px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 1px;">
-                <span>SQ:${ac.squawk}</span>
-                <span style="margin-left: 4px; display: inline-flex; align-items: center;">
-                  ${flagHtml}
-                  ${
-                    isEmergency
-                      ? `<span style="color: #ff3344; font-weight: bold;" class="animate-pulse">${squawkInfo.alertType}</span>`
-                      : `<span style="opacity: 0.7;">${ac.isGround ? 'GND' : 'AIR'}</span>`
-                  }
-                </span>
-              </div>
+              ${tagBodyHtml}
             </div>
           </div>
         `;
@@ -157,6 +306,12 @@ export const AircraftLayer: React.FC = () => {
           iconAnchor: [0, 0],
         });
 
+        // Connected trajectory polyline for selected aircraft
+        const selectedTrajectoryPoints: [number, number][] =
+          isSelected && ac.history && ac.history.length >= 2
+            ? [...ac.history.map((pt) => [pt.lat, pt.lon] as [number, number]), [ac.lat, ac.lon]]
+            : [];
+
         return (
           <React.Fragment key={ac.hex}>
             {/* Speed Leader Vector Line */}
@@ -167,18 +322,33 @@ export const AircraftLayer: React.FC = () => {
                   [speedEnd.lat, speedEnd.lon],
                 ]}
                 pathOptions={{
-                  color: isSelected ? '#00e5ff' : mainColor,
+                  color: isSelected ? secondaryColor : mainColor,
                   weight: isSelected ? 2 : 1.5,
                   opacity: 0.85,
                 }}
               />
             )}
 
-            {/* History Trail Dots (up to 5 dots with fading opacity) */}
-            {ac.history.map((pt, idx) => {
-              const totalDots = ac.history.length;
-              const opacity = 0.15 + (idx / Math.max(1, totalDots)) * 0.65;
-              const radius = 1.5 + (idx / Math.max(1, totalDots)) * 1.5;
+            {/* Selected Aircraft Full Track Polyline */}
+            {selectedTrajectoryPoints.length > 1 && (
+              <Polyline
+                positions={selectedTrajectoryPoints}
+                pathOptions={{
+                  color: secondaryColor,
+                  weight: 1.8,
+                  opacity: 0.75,
+                  dashArray: '3, 4',
+                }}
+                interactive={false}
+              />
+            )}
+
+            {/* History Trail Dots (Breadcrumbs with authentic fading phosphor decay) */}
+            {historyPoints.map((pt, idx) => {
+              const totalDots = historyPoints.length;
+              const ratio = idx / Math.max(1, totalDots);
+              const opacity = 0.08 + ratio * 0.75;
+              const radius = 1.2 + ratio * 2.2;
 
               return (
                 <CircleMarker
@@ -186,8 +356,8 @@ export const AircraftLayer: React.FC = () => {
                   center={[pt.lat, pt.lon]}
                   radius={radius}
                   pathOptions={{
-                    color: mainColor,
-                    fillColor: mainColor,
+                    color: isSelected ? secondaryColor : mainColor,
+                    fillColor: isSelected ? secondaryColor : mainColor,
                     fillOpacity: opacity,
                     weight: 0,
                   }}
@@ -200,6 +370,7 @@ export const AircraftLayer: React.FC = () => {
             <Marker
               position={[ac.lat, ac.lon]}
               icon={customIcon}
+              zIndexOffset={isSelected ? 10000 : 5000}
               eventHandlers={{
                 click: () => {
                   selectAircraft(isSelected ? null : ac.hex);

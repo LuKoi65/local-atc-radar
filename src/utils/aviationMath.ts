@@ -346,3 +346,63 @@ export function formatBra(
   }
   return `${b}° / ${d} NM`;
 }
+
+/**
+ * Interpolates intermediate great-circle coordinates between two lat/lon points
+ * for accurate curvature and route drawing across large distances.
+ * Preserves true geographic coordinate bounds (Lat: -90..+90, Lon: -180..+180).
+ */
+export function interpolateGreatCirclePoints(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+  pointsCount: number = 20
+): [number, number][] {
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const rLat1 = toRad(lat1);
+  const rLat2 = toRad(lat2);
+
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(rLat1) * Math.cos(rLat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const d = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  if (d < 0.0001 || pointsCount <= 1) {
+    return [
+      [lat1, lon1],
+      [lat2, lon2],
+    ];
+  }
+
+  const sinD = Math.sin(d);
+  const points: [number, number][] = [];
+
+  for (let i = 0; i <= pointsCount; i++) {
+    const f = i / pointsCount;
+    const aCoeff = Math.sin((1 - f) * d) / sinD;
+    const bCoeff = Math.sin(f * d) / sinD;
+
+    const x =
+      aCoeff * Math.cos(rLat1) * Math.cos(toRad(lon1)) +
+      bCoeff * Math.cos(rLat2) * Math.cos(toRad(lon2));
+    const y =
+      aCoeff * Math.cos(rLat1) * Math.sin(toRad(lon1)) +
+      bCoeff * Math.cos(rLat2) * Math.sin(toRad(lon2));
+    const z = aCoeff * Math.sin(rLat1) + bCoeff * Math.sin(rLat2);
+
+    // Standard geographic degrees in [-90, +90] and [-180, +180]
+    const latI = (Math.atan2(z, Math.sqrt(x * x + y * y)) * 180) / Math.PI;
+    const lonI = (Math.atan2(y, x) * 180) / Math.PI;
+
+    points.push([latI, lonI]);
+  }
+
+  // Force exact start and end coordinates to match endpoints without float drift
+  points[0] = [lat1, lon1];
+  points[points.length - 1] = [lat2, lon2];
+
+  return points;
+}
+

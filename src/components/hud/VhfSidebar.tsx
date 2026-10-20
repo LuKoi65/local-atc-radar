@@ -210,20 +210,26 @@ export const VhfSidebar: React.FC = () => {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // When collapsed: show discreet left tab
+  // When collapsed: show discreet left tab with unified width and styling
   if (!vhfSidebarOpen) {
+    const airportFreqCount = frequencies.filter((f) => f.stationIcao === currentAirport.icao).length;
     return (
       <button
         onClick={() => setVhfSidebarOpen(true)}
         style={{ left: flightsSidebarOpen ? `${flightsSidebarWidth}px` : '0px' }}
-        className="absolute top-14 bg-radar-panel border-r border-y border-radar-border hover:border-radar-cyan px-2 py-4 rounded-r-md shadow-2xl z-[460] flex flex-col items-center gap-2 text-radar-green hover:text-radar-cyan transition-all duration-150"
+        className="absolute top-14 w-9 bg-radar-panel border-r border-y border-radar-border hover:border-radar-cyan py-3.5 px-1 rounded-r-md shadow-2xl z-[460] flex flex-col items-center justify-center gap-2 text-radar-cyan hover:text-white transition-all duration-150"
         title="Ouvrir le panneau des Fréquences Radio VHF"
       >
         <Radio className="w-4 h-4 text-radar-cyan" />
         <span className="[writing-mode:vertical-lr] text-[10px] font-bold tracking-widest uppercase text-radar-cyan">
           VHF ({currentAirport.icao})
         </span>
-        <ChevronRight className="w-3.5 h-3.5" />
+        {airportFreqCount > 0 && (
+          <span className="bg-radar-cyan/20 text-radar-cyan text-[9px] px-1 py-0.5 rounded font-mono font-bold border border-radar-cyan/40 min-w-[20px] text-center">
+            {airportFreqCount}
+          </span>
+        )}
+        <ChevronRight className="w-3.5 h-3.5 text-radar-cyan" />
       </button>
     );
   }
@@ -231,8 +237,8 @@ export const VhfSidebar: React.FC = () => {
   return (
     <aside
       style={{ width: `${vhfSidebarWidth}px` }}
-      className={`absolute left-0 top-12 ${
-        flightsSidebarOpen ? 'bottom-[50%] border-b border-radar-border' : 'bottom-8'
+      className={`absolute left-0 top-0 ${
+        flightsSidebarOpen ? 'bottom-[50%] border-b border-radar-border' : 'bottom-0'
       } bg-radar-panel/95 backdrop-blur-md border-r border-radar-border shadow-2xl z-[450] flex flex-col font-mono text-radar-green select-none`}
     >
       {/* Draggable Right Resize Handle */}

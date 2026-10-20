@@ -7,11 +7,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..');
 
-const releaseDir = path.join(rootDir, 'release');
+// Version 0.4 organized in dedicated release directory
+const releaseVersion = 'v0.4';
+const releaseDir = path.join(rootDir, 'release', releaseVersion);
 const appOutDir = path.join(releaseDir, 'Local-ATC-Radar-win-x64');
 const electronDist = path.join(rootDir, 'node_modules', 'electron', 'dist');
 
-console.log('[Packaging] Starting Windows Portable Desktop package build for Local ATC Radar...');
+console.log(`[Packaging] Starting Windows Portable Desktop package build for Local ATC Radar (${releaseVersion})...`);
 
 // Ensure dist/ exists
 if (!fs.existsSync(path.join(rootDir, 'dist', 'index.html'))) {
@@ -19,14 +21,14 @@ if (!fs.existsSync(path.join(rootDir, 'dist', 'index.html'))) {
   process.exit(1);
 }
 
-// Clean previous build outputs
-const oldOutDir = path.join(releaseDir, 'ATC-Radar-Simulator-win-x64');
-if (fs.existsSync(oldOutDir)) {
-  fs.rmSync(oldOutDir, { recursive: true, force: true });
-}
+// Clean and prepare release directory for this version
 if (fs.existsSync(appOutDir)) {
-  console.log('[Packaging] Removing previous build output...');
-  fs.rmSync(appOutDir, { recursive: true, force: true });
+  console.log('[Packaging] Preparing build output in ' + releaseVersion + '...');
+  try {
+    fs.rmSync(appOutDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 });
+  } catch (err) {
+    console.warn('[Packaging] Note: Folder partially locked, overwriting existing files in place...');
+  }
 }
 fs.mkdirSync(appOutDir, { recursive: true });
 
@@ -54,7 +56,7 @@ if (fs.existsSync(rceditPath) && fs.existsSync(iconIcoPath)) {
       iconIcoPath,
       '--set-version-string',
       'FileDescription',
-      'Local ATC Radar',
+      'Local ATC Radar v0.4',
       '--set-version-string',
       'ProductName',
       'Local ATC Radar',
@@ -83,71 +85,45 @@ fs.cpSync(path.join(rootDir, 'server'), path.join(resourcesAppDir, 'server'), { 
 console.log('[Packaging] Copying compiled frontend bundle (dist)...');
 fs.cpSync(path.join(rootDir, 'dist'), path.join(resourcesAppDir, 'dist'), { recursive: true });
 
-// Copy required runtime dependencies from node_modules (express, cors, and their deps)
-console.log('[Packaging] Bundling backend dependencies (express, cors)...');
+// Copy all required runtime dependencies from node_modules dynamically
+console.log('[Packaging] Discovering all production dependencies...');
 const destNodeModules = path.join(resourcesAppDir, 'node_modules');
 fs.mkdirSync(destNodeModules, { recursive: true });
 
-const requiredDeps = [
-  'express',
-  'cors',
-  'accepts',
-  'array-flatten',
-  'body-parser',
-  'bytes',
-  'content-disposition',
-  'content-type',
-  'cookie',
-  'cookie-signature',
-  'debug',
-  'depd',
-  'destroy',
-  'ee-first',
-  'encodeurl',
-  'escape-html',
-  'etag',
-  'finalhandler',
-  'forwarded',
-  'fresh',
-  'http-errors',
-  'inherits',
-  'ipaddr.js',
-  'media-typer',
-  'merge-descriptors',
-  'methods',
-  'mime',
-  'mime-db',
-  'mime-types',
-  'ms',
-  'negotiator',
-  'on-finished',
-  'parseurl',
-  'path-to-regexp',
-  'proxy-addr',
-  'qs',
-  'range-parser',
-  'raw-body',
-  'safe-buffer',
-  'safer-buffer',
-  'send',
-  'serve-static',
-  'setprototypeof',
-  'statuses',
-  'toidentifier',
-  'type-is',
-  'unpipe',
-  'utils-merge',
-  'vary',
-  'object-assign'
-];
+function getProductionDependencies() {
+  const deps = new Set(['express', 'cors']);
+  try {
+    const output = child_process.execSync('npm list --omit=dev --all --json', { cwd: rootDir }).toString();
+    const tree = JSON.parse(output);
+    function walk(node) {
+      if (node.dependencies) {
+        for (const [name, info] of Object.entries(node.dependencies)) {
+          deps.add(name);
+          walk(info);
+        }
+      }
+    }
+    walk(tree);
+  } catch (err) {
+    console.warn('[Packaging] Failed to run npm list, using fallback:', err.message);
+  }
+  return Array.from(deps);
+}
 
-for (const dep of requiredDeps) {
+const prodDeps = getProductionDependencies();
+console.log(`[Packaging] Bundling ${prodDeps.length} runtime dependency packages...`);
+
+let copiedCount = 0;
+for (const dep of prodDeps) {
   const srcDep = path.join(rootDir, 'node_modules', dep);
   const dstDep = path.join(destNodeModules, dep);
   if (fs.existsSync(srcDep)) {
+    fs.mkdirSync(path.dirname(dstDep), { recursive: true });
     fs.cpSync(srcDep, dstDep, { recursive: true });
+    copiedCount++;
   }
 }
+console.log(`[Packaging] Successfully bundled ${copiedCount} packages into resources/app/node_modules.`);
 
 // 4. Create an easy shortcut launcher in release directory
 const shortcutBat = `@echo off
@@ -155,14 +131,27 @@ start "" "%~dp0Local-ATC-Radar-win-x64\\Local-ATC-Radar.exe"
 `;
 fs.writeFileSync(path.join(releaseDir, 'Lancer-Local-ATC-Radar.bat'), shortcutBat, 'utf-8');
 
-// Remove obsolete launcher if present
-const oldBat = path.join(releaseDir, 'Lancer-ATC-Radar.bat');
-if (fs.existsSync(oldBat)) {
-  fs.unlinkSync(oldBat);
+// 5. Generate zip archive in release directory
+const zipName = `Local-ATC-Radar-${releaseVersion}-Windows.zip`;
+const zipPath = path.join(releaseDir, zipName);
+console.log(`[Packaging] Generating release zip archive: ${zipName}...`);
+try {
+  if (fs.existsSync(zipPath)) {
+    fs.unlinkSync(zipPath);
+  }
+  child_process.execSync(
+    `powershell -Command "Compress-Archive -Path '${appOutDir}', '${path.join(releaseDir, 'Lancer-Local-ATC-Radar.bat')}' -DestinationPath '${zipPath}'"`,
+    { stdio: 'inherit' }
+  );
+  console.log(`[Packaging] Zip archive generated successfully: ${zipPath}`);
+} catch (err) {
+  console.warn('[Packaging] Could not create zip archive automatically:', err.message);
 }
 
 console.log('========================================================');
-console.log(' BUILD SUCCESSFUL!');
-console.log(` Executable created at:`);
+console.log(` BUILD SUCCESSFUL FOR RELEASE ${releaseVersion}!`);
+console.log(` Executable folder:`);
+console.log(` ${appOutDir}`);
+console.log(` Standalone executable:`);
 console.log(` ${targetExe}`);
 console.log('========================================================');

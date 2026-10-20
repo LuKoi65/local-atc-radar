@@ -35,8 +35,8 @@ export const AeronauticalLayer: React.FC = () => {
             ? L.divIcon({
                 className: 'airspace-label',
                 html: `
-                  <div style="color: ${airspace.color}; font-size: ${isClean ? '8px' : '9px'}; font-weight: 700; font-family: 'JetBrains Mono', monospace;
-                              background: rgba(10, 15, 20, 0.7); border: 1px dashed ${airspace.color}88; padding: 1px 3px;
+                  <div style="display: inline-block; width: max-content; color: ${airspace.color}; font-size: ${isClean ? '8px' : '9px'}; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+                              background: rgba(8, 14, 20, 0.85); border: 1px dashed ${airspace.color}88; padding: 1px 4px;
                               border-radius: 2px; white-space: nowrap; transform: translate(-50%, -100%); opacity: ${isClean ? 0.6 : 0.85};">
                     ${airspace.name} [${airspace.classification}] ${airspace.floor}/${airspace.ceiling}
                   </div>
@@ -59,7 +59,7 @@ export const AeronauticalLayer: React.FC = () => {
                   fillOpacity: isClean ? 0.02 : 0.04,
                 }}
               />
-              {labelIcon && <Marker position={northPoint} icon={labelIcon} interactive={false} />}
+              {labelIcon && <Marker position={northPoint} icon={labelIcon} interactive={false} zIndexOffset={-1200} />}
             </React.Fragment>
           );
         })}
@@ -76,10 +76,13 @@ export const AeronauticalLayer: React.FC = () => {
             ? L.divIcon({
                 className: 'star-tag',
                 html: `
-                  <div style="color: ${star.color}; font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
-                              background: rgba(10, 15, 20, 0.75); border: 1px solid ${star.color}66; padding: 1px 3px;
-                              border-radius: 2px; white-space: nowrap; transform: translate(-50%, -140%); opacity: ${isClean ? 0.7 : 0.9};">
-                    ✈ ${star.name}
+                  <div style="display: inline-flex; align-items: center; gap: 4px; width: max-content; color: ${star.color}; font-size: 8.5px; font-weight: 700; font-family: 'JetBrains Mono', monospace;
+                              background: rgba(8, 14, 20, 0.92); border: 1px solid ${star.color}88; padding: 1px 5px;
+                              border-radius: 2px; white-space: nowrap; transform: translate(-50%, -140%); opacity: ${isClean ? 0.7 : 0.95};">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="${star.color}" style="transform: rotate(-45deg); flex-shrink: 0;">
+                      <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                    </svg>
+                    <span>${star.name}</span>
                   </div>
                 `,
                 iconSize: [0, 0],
@@ -99,7 +102,7 @@ export const AeronauticalLayer: React.FC = () => {
                 }}
               />
               {routeTagIcon && (
-                <Marker position={[entryPt.lat, entryPt.lon]} icon={routeTagIcon} interactive={false} />
+                <Marker position={[entryPt.lat, entryPt.lon]} icon={routeTagIcon} interactive={false} zIndexOffset={-900} />
               )}
             </React.Fragment>
           );
@@ -109,7 +112,7 @@ export const AeronauticalLayer: React.FC = () => {
       {showNavaids &&
         NAVAIDS_PRESET.map((nav) => {
           const navaidHtml = `
-            <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); cursor: default; opacity: ${isClean ? 0.75 : 0.9};">
+            <div style="position: relative; display: flex; flex-direction: column; align-items: center; width: max-content; transform: translate(-50%, -50%); cursor: default; opacity: ${isClean ? 0.75 : 0.9};">
               <!-- VOR Compass Hexagon / Symbol -->
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" stroke-width="2">
                 <polygon points="12,2 22,8 22,16 12,22 2,16 2,8" stroke-dasharray="${nav.type === 'NDB' ? '2,2' : 'none'}" />
@@ -118,8 +121,8 @@ export const AeronauticalLayer: React.FC = () => {
               <!-- Label -->
               ${
                 !hideText
-                  ? `<div style="color: #00e5ff; font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace; 
-                              white-space: nowrap; margin-top: 1px; background: rgba(10,15,20,0.7); padding: 0 2px; border-radius: 2px;">
+                  ? `<div style="display: inline-block; width: max-content; color: #00e5ff; font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace; 
+                              white-space: nowrap; margin-top: 1px; background: rgba(8,14,20,0.85); padding: 0 3px; border-radius: 2px;">
                        ${nav.ident} ${!isClean ? `<span style="opacity: 0.7;">${nav.frequency}</span>` : ''}
                      </div>`
                   : ''
@@ -140,6 +143,7 @@ export const AeronauticalLayer: React.FC = () => {
               position={[nav.lat, nav.lon]}
               icon={navIcon}
               interactive={false}
+              zIndexOffset={-1000}
             />
           );
         })}
@@ -153,15 +157,15 @@ export const AeronauticalLayer: React.FC = () => {
           }
 
           const wptHtml = `
-            <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); cursor: default; opacity: ${isClean ? 0.65 : 0.85};">
+            <div style="position: relative; display: flex; flex-direction: column; align-items: center; width: max-content; transform: translate(-50%, -50%); cursor: default; opacity: ${isClean ? 0.65 : 0.85};">
               <!-- RNAV Triangle -->
               <svg width="10" height="10" viewBox="0 0 20 20" fill="none" stroke="#00ff66" stroke-width="2">
                 <polygon points="10,2 19,18 1,18" />
               </svg>
               ${
                 !hideText
-                  ? `<div style="color: #00ff66; font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace; 
-                              white-space: nowrap; margin-top: 1px; background: rgba(10,15,20,0.7); padding: 0 2px;">
+                  ? `<div style="display: inline-block; width: max-content; color: #00ff66; font-size: 8px; font-weight: 700; font-family: 'JetBrains Mono', monospace; 
+                              white-space: nowrap; margin-top: 1px; background: rgba(8,14,20,0.85); padding: 0 3px; border-radius: 2px;">
                        ${wpt.name}
                      </div>`
                   : ''
@@ -182,6 +186,7 @@ export const AeronauticalLayer: React.FC = () => {
               position={[wpt.lat, wpt.lon]}
               icon={wptIcon}
               interactive={false}
+              zIndexOffset={-1000}
             />
           );
         })}

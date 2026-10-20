@@ -1,5 +1,27 @@
 import { toRad } from '../../utils/aviationMath';
 
+export interface TafForecast {
+  fcstTimeFrom?: number;
+  fcstTimeTo?: number;
+  change?: string;
+  probability?: number;
+  wdir?: number | 'VRB';
+  wspd?: number;
+  visib?: string | number;
+  wxString?: string;
+  clouds?: { cover: string; base: number; type?: string }[];
+}
+
+export interface TafData {
+  icao: string;
+  rawTAF: string;
+  issueTime?: string;
+  validTimeFrom?: number | null;
+  validTimeTo?: number | null;
+  remarks?: string;
+  fcsts?: TafForecast[];
+}
+
 export interface MetarData {
   icao: string;
   raw: string;
@@ -15,6 +37,7 @@ export interface MetarData {
   flightRules?: 'VFR' | 'MVFR' | 'IFR' | 'LIFR';
   clouds?: { cover: string; base: number }[];
   isSimulated?: boolean;
+  taf?: TafData | null;
 }
 
 export class MetarService {
@@ -47,6 +70,7 @@ export class MetarService {
         const items = await direct.json();
         if (Array.isArray(items) && items.length > 0) {
           const item = items[0];
+          const taf = await this.fetchTaf(cleanIcao).catch(() => null);
           const data: MetarData = {
             icao: cleanIcao,
             raw: item.rawOb || '',
@@ -60,6 +84,7 @@ export class MetarService {
             visSm: item.visib,
             flightRules: item.fltcat || 'VFR',
             clouds: item.clouds || [],
+            taf,
           };
           this.cache.set(cleanIcao, { data, timestamp: now });
           return data;
@@ -81,6 +106,41 @@ export class MetarService {
       flightRules: 'VFR',
     };
     return fallback;
+  }
+
+  public async fetchTaf(icao: string): Promise<TafData | null> {
+    const cleanIcao = icao.toUpperCase().trim();
+    try {
+      const res = await fetch(`/api/taf?icao=${cleanIcao}`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      // Graceful
+    }
+
+    try {
+      const direct = await fetch(`https://aviationweather.gov/api/data/taf?ids=${cleanIcao}&format=json`);
+      if (direct.ok) {
+        const items = await direct.json();
+        if (Array.isArray(items) && items.length > 0) {
+          const item = items[0];
+          return {
+            icao: cleanIcao,
+            rawTAF: item.rawTAF || '',
+            issueTime: item.issueTime || '',
+            validTimeFrom: item.validTimeFrom || null,
+            validTimeTo: item.validTimeTo || null,
+            remarks: item.remarks || '',
+            fcsts: item.fcsts || [],
+          };
+        }
+      }
+    } catch (e) {
+      // Graceful
+    }
+
+    return null;
   }
 
   /**

@@ -4,6 +4,7 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { resolveCurrentLocation } from './locationHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,15 +24,97 @@ const cache = {
 };
 const CACHE_TTL_MS = 1500;
 
-// METAR cache (5 minute TTL)
+// METAR & TAF caches
 const metarCache = new Map();
+const tafCache = new Map();
+
+async function getAviationTaf(icao) {
+  const cleanIcao = (icao || 'LFBT').toUpperCase().trim();
+  const now = Date.now();
+  const cached = tafCache.get(cleanIcao);
+  if (cached && (now - cached.time) < 10 * 60 * 1000) {
+    return cached.data;
+  }
+
+  try {
+    const url = `https://aviationweather.gov/api/data/taf?ids=${cleanIcao}&format=json`;
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'ATC-Radar-Simulator/1.0',
+      },
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const item = data[0];
+        const tafData = {
+          icao: cleanIcao,
+          rawTAF: item.rawTAF || '',
+          issueTime: item.issueTime || '',
+          validTimeFrom: item.validTimeFrom || null,
+          validTimeTo: item.validTimeTo || null,
+          remarks: item.remarks || '',
+          fcsts: item.fcsts || [],
+        };
+        tafCache.set(cleanIcao, { time: now, data: tafData });
+        return tafData;
+      }
+    }
+
+    // Fallback: text API
+    const rawRes = await fetch(`https://aviationweather.gov/api/data/taf?ids=${cleanIcao}`);
+    if (rawRes.ok) {
+      const rawText = (await rawRes.text()).trim();
+      if (rawText && !rawText.includes('No data')) {
+        const tafData = {
+          icao: cleanIcao,
+          rawTAF: rawText,
+          issueTime: '',
+          validTimeFrom: null,
+          validTimeTo: null,
+          remarks: '',
+          fcsts: [],
+        };
+        tafCache.set(cleanIcao, { time: now, data: tafData });
+        return tafData;
+      }
+    }
+  } catch (err) {
+    console.warn(`[TAF] Error fetching TAF for ${cleanIcao}:`, err.message);
+  }
+
+  return null;
+}
+
+// Dedicated TAF endpoint
+app.get('/api/taf', async (req, res) => {
+  const icao = (req.query.icao || 'LFBT').toUpperCase().trim();
+  const taf = await getAviationTaf(icao);
+  if (taf) return res.json(taf);
+  res.status(404).json({ error: 'TAF indisponible' });
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', serverTime: new Date().toISOString() });
 });
 
-// Primary Live Free Feed: opendata.adsb.fi (primary), airplanes.live & adsb.lol (fallbacks)
+// Geolocation endpoint for Electron standalone and desktop browsers
+app.get('/api/geolocation', async (req, res) => {
+  try {
+    const loc = await resolveCurrentLocation();
+    if (loc) {
+      return res.json(loc);
+    }
+    return res.status(503).json({ error: 'Position indisponible' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Primary Live Free Feed: Parallel aggregation across opendata.adsb.fi, api.adsb.lol, and OpenSky Network
 app.get('/api/traffic/live', async (req, res) => {
   const lat = parseFloat(req.query.lat) || 43.1786;
   const lon = parseFloat(req.query.lon) || -0.0064;
@@ -45,66 +128,138 @@ app.get('/api/traffic/live', async (req, res) => {
     return res.json(cache.data);
   }
 
-  // 1. opendata.adsb.fi (stable, returns { aircraft: [...] })
-  // 2. api.airplanes.live (returns { ac: [...] })
-  // 3. api.adsb.lol (returns { ac: [...] })
-  const urls = [
-    `https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${radius}`,
-    `https://api.airplanes.live/v2/point/${lat}/${lon}/${radius}`,
-    `https://api.adsb.lol/v2/point/${lat}/${lon}/${radius}`,
-  ];
+  // Calculate bounding box for OpenSky Network
+  const latDelta = radius / 60;
+  const lonDelta = radius / (60 * Math.cos((lat * Math.PI) / 180));
+  const lamin = (lat - latDelta).toFixed(4);
+  const lamax = (lat + latDelta).toFixed(4);
+  const lomin = (lon - lonDelta).toFixed(4);
+  const lomax = (lon + lonDelta).toFixed(4);
 
-  let lastError = null;
-  for (const url of urls) {
+  const fetchWithTimeout = async (url, timeoutMs = 4500) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      
       const response = await fetch(url, {
         headers: {
-          'Accept': 'application/json, text/plain, */*',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+          Accept: 'application/json, text/plain, */*',
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
           'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
         },
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
-
       if (response.ok) {
-        const data = await response.json();
-        // Check for aircraft list under either 'ac' or 'aircraft'
-        const rawList = Array.isArray(data.ac) ? data.ac : (Array.isArray(data.aircraft) ? data.aircraft : null);
-        if (rawList !== null && !data.error) {
-          const normalized = {
-            now: data.now || Math.floor(now / 1000),
-            ac: rawList,
-            aircraft: rawList,
-            total: rawList.length,
-            resultCount: rawList.length,
-          };
-          cache.key = cacheKey;
-          cache.timestamp = now;
-          cache.data = normalized;
-          return res.json(normalized);
-        }
+        return await response.json();
       }
-    } catch (err) {
-      lastError = err;
+      return null;
+    } catch {
+      clearTimeout(timeoutId);
+      return null;
+    }
+  };
+
+  // Run queries in parallel across multiple independent receiver networks
+  const [dataFi, dataLol, dataOpenSky] = await Promise.allSettled([
+    fetchWithTimeout(`https://opendata.adsb.fi/api/v2/lat/${lat}/lon/${lon}/dist/${radius}`),
+    fetchWithTimeout(`https://api.adsb.lol/v2/point/${lat}/${lon}/${radius}`),
+    fetchWithTimeout(
+      `https://opensky-network.org/api/states/all?lamin=${lamin}&lomin=${lomin}&lamax=${lamax}&lomax=${lomax}`
+    ),
+  ]);
+
+  const acMap = new Map();
+
+  const mergeReadsbList = (rawList, sourceName) => {
+    if (!Array.isArray(rawList)) return;
+    for (const a of rawList) {
+      if (!a || !a.hex || a.lat == null || a.lon == null) continue;
+      const hex = a.hex.trim().toUpperCase();
+      const existing = acMap.get(hex);
+      if (!existing) {
+        acMap.set(hex, { ...a, hex, _source: sourceName });
+      } else {
+        // Keep the freshest position & best metadata
+        const useNewPosition = a.seen != null && (existing.seen == null || a.seen < existing.seen);
+        acMap.set(hex, {
+          ...existing,
+          ...(useNewPosition ? a : {}),
+          hex,
+          flight: (a.flight && a.flight.trim()) || existing.flight || '',
+          r: (a.r && a.r.trim()) || existing.r || hex,
+          t: a.t || existing.t || '',
+          desc: a.desc || existing.desc || '',
+          squawk: a.squawk && a.squawk !== '----' ? a.squawk : existing.squawk,
+          gs: typeof a.gs === 'number' && a.gs > 0 ? a.gs : existing.gs,
+          alt_baro: a.alt_baro !== undefined ? a.alt_baro : existing.alt_baro,
+          _source: `${existing._source}+${sourceName}`,
+        });
+      }
+    }
+  };
+
+  if (dataFi.status === 'fulfilled' && dataFi.value) {
+    mergeReadsbList(dataFi.value.ac || dataFi.value.aircraft, 'adsb.fi');
+  }
+
+  if (dataLol.status === 'fulfilled' && dataLol.value) {
+    mergeReadsbList(dataLol.value.ac || dataLol.value.aircraft, 'adsb.lol');
+  }
+
+  if (dataOpenSky.status === 'fulfilled' && dataOpenSky.value && Array.isArray(dataOpenSky.value.states)) {
+    for (const s of dataOpenSky.value.states) {
+      const hex = (s[0] || '').trim().toUpperCase();
+      if (!hex || s[5] == null || s[6] == null) continue;
+      const existing = acMap.get(hex);
+      if (!existing) {
+        acMap.set(hex, {
+          hex,
+          flight: (s[1] || '').trim(),
+          r: hex,
+          lat: s[6],
+          lon: s[5],
+          alt_baro: s[8] ? 'ground' : s[7] ? Math.round(s[7] * 3.28084) : 0,
+          gs: s[9] ? Math.round(s[9] * 1.94384) : 0,
+          track: s[10] || 0,
+          baro_rate: s[11] ? Math.round(s[11] * 196.85) : 0,
+          squawk: s[14] || '----',
+          seen: Math.max(0, Math.round(Date.now() / 1000 - (s[4] || s[3] || Date.now() / 1000))),
+          _source: 'opensky',
+        });
+      } else if (!existing.flight && s[1]) {
+        existing.flight = s[1].trim();
+      }
     }
   }
 
-  // If all upstream endpoints failed or timed out, return stale cache if available
+  const mergedList = Array.from(acMap.values());
+
+  if (mergedList.length > 0) {
+    const normalized = {
+      now: Math.floor(now / 1000),
+      ac: mergedList,
+      aircraft: mergedList,
+      total: mergedList.length,
+      resultCount: mergedList.length,
+    };
+    cache.key = cacheKey;
+    cache.timestamp = now;
+    cache.data = normalized;
+    return res.json(normalized);
+  }
+
+  // If all upstream endpoints returned 0 planes, return stale cache if available
   if (cache.data && cache.data.ac && cache.data.ac.length > 0) {
     return res.json({ ...cache.data, isStale: true });
   }
 
   res.json({
     warning: 'Flux ADS-B temporairement indisponible',
-    detail: lastError ? lastError.message : 'Délai d\'attente dépassé',
     ac: [],
     aircraft: [],
     total: 0,
-    now: Math.floor(now / 1000)
+    now: Math.floor(now / 1000),
   });
 });
 
@@ -184,6 +339,7 @@ app.get('/api/metar', async (req, res) => {
           cover: item.cover,
           flightRules: item.fltcat || 'VFR',
           clouds: item.clouds || [],
+          taf: await getAviationTaf(icao),
         };
         metarCache.set(icao, { time: now, data: result });
         return res.json(result);
@@ -203,6 +359,7 @@ app.get('/api/metar', async (req, res) => {
           altimHpa: qnh,
           time: new Date().toISOString(),
           flightRules: 'VFR',
+          taf: await getAviationTaf(icao),
         };
         metarCache.set(icao, { time: now, data: result });
         return res.json(result);
@@ -555,6 +712,58 @@ app.get('/api/airport/flights', async (req, res) => {
 // Route Cache (2 hours TTL)
 const routeCache = new Map();
 
+function formatFlightTimeAndStatus(times, timeZoneStr, isArrival = false) {
+  if (!times) return { timeText: '', statusText: '' };
+  const actualSec = times.actual;
+  const estSec = times.estimated;
+  const schedSec = times.scheduled;
+
+  const targetSec = actualSec || estSec || schedSec;
+  if (!targetSec) return { timeText: '', statusText: '' };
+
+  const d = new Date(targetSec * 1000);
+  let timeStr = '';
+  let tzStr = 'CEST';
+  try {
+    const cleanTz = timeZoneStr ? timeZoneStr.replace(/^:/, '') : 'Europe/Paris';
+    const formatter = new Intl.DateTimeFormat('fr-FR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone: cleanTz,
+    });
+    timeStr = formatter.format(d).replace(':', 'h');
+
+    const tzNameFormatter = new Intl.DateTimeFormat('en-US', {
+      timeZoneName: 'short',
+      timeZone: cleanTz,
+    });
+    const parts = tzNameFormatter.formatToParts(d);
+    tzStr = parts.find((p) => p.type === 'timeZoneName')?.value || 'UTC';
+  } catch (e) {
+    const h = d.getHours().toString().padStart(2, '0');
+    const m = d.getMinutes().toString().padStart(2, '0');
+    timeStr = `${h}h${m}`;
+  }
+
+  let statusText = '(à l\'heure)';
+  const compSec = actualSec || estSec;
+  if (compSec && schedSec) {
+    const diffMin = Math.round((compSec - schedSec) / 60);
+    if (diffMin > 5) {
+      statusText = `(+${diffMin} min)`;
+    } else if (diffMin < -5) {
+      statusText = `(en avance de ${Math.abs(diffMin)} min)`;
+    } else {
+      statusText = '(à l\'heure)';
+    }
+  }
+
+  return {
+    timeText: `${timeStr} ${tzStr}`,
+    statusText,
+  };
+}
+
 async function getFlightAwareRoute(rawFlight) {
   const flight = (rawFlight || '').trim().replace(/\s+/g, '').toUpperCase();
   if (!flight || flight.length < 3) return null;
@@ -594,16 +803,52 @@ async function getFlightAwareRoute(rawFlight) {
             const origCity = (orig.friendlyLocation || orig.friendlyName || '').split(',')[0].trim();
             const destCity = (dest.friendlyLocation || dest.friendlyName || '').split(',')[0].trim();
 
+            const depTimes = f.takeoffTimes || f.gateDepartureTimes || {};
+            const arrTimes = f.landingTimes || f.gateArrivalTimes || {};
+            const depInfo = formatFlightTimeAndStatus(depTimes, orig.TZ, false);
+            const arrInfo = formatFlightTimeAndStatus(arrTimes, dest.TZ, true);
+
+            let progressPercent = 50;
+            if (f.flightStatus === 'arrived') {
+              progressPercent = 100;
+            } else if (f.flightStatus === 'scheduled') {
+              progressPercent = 0;
+            } else if (f.distance && (f.distance.elapsed || f.distance.remaining)) {
+              const el = f.distance.elapsed || 0;
+              const rem = f.distance.remaining || 0;
+              if (el + rem > 0) {
+                progressPercent = Math.min(96, Math.max(4, Math.round((el / (el + rem)) * 100)));
+              }
+            } else {
+              const depSec = depTimes.actual || depTimes.estimated || depTimes.scheduled;
+              const arrSec = arrTimes.actual || arrTimes.estimated || arrTimes.scheduled;
+              const nowSec = Math.floor(Date.now() / 1000);
+              if (depSec && arrSec && arrSec > depSec) {
+                const ratio = (nowSec - depSec) / (arrSec - depSec);
+                progressPercent = Math.min(96, Math.max(4, Math.round(ratio * 100)));
+              }
+            }
+
             if (origCity || destCity || orig.iata || dest.iata) {
               const routeData = {
                 flight,
                 originIata: orig.iata || orig.altIdent || '',
                 originIcao: orig.icao || '',
                 originCity: origCity || orig.iata || '',
+                originCoord: orig.coord || null,
                 destIata: dest.iata || dest.altIdent || '',
                 destIcao: dest.icao || '',
                 destCity: destCity || dest.iata || '',
+                destCoord: dest.coord || null,
                 formattedRoute: `${origCity || orig.iata || orig.icao} ────────✈────────> ${destCity || dest.iata || dest.icao}`,
+                departureTimeText: depInfo.timeText,
+                departureStatusText: depInfo.statusText,
+                arrivalTimeText: arrInfo.timeText,
+                arrivalStatusText: arrInfo.statusText,
+                progressPercent,
+                flightStatus: f.flightStatus || 'en_route',
+                distanceElapsedNm: f.distance?.elapsed || null,
+                distanceRemainingNm: f.distance?.remaining || null,
               };
               routeCache.set(flight, { time: now, data: routeData });
               return routeData;
@@ -628,6 +873,7 @@ async function getFlightAwareRoute(rawFlight) {
           destIcao,
           destCity: destIata || destIcao,
           formattedRoute: `${origIata || origIcao} ────────✈────────> ${destIata || destIcao}`,
+          progressPercent: 50,
         };
         routeCache.set(flight, { time: now, data: routeData });
         return routeData;

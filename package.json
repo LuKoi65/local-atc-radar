@@ -1,6 +1,6 @@
 {
   "name": "local-atc-radar",
-  "version": "1.0.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Local ATC Radar - Approach & Tower Scope",
   "main": "electron/main.cjs",

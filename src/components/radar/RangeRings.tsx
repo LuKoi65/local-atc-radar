@@ -9,6 +9,12 @@ export const RangeRings: React.FC = () => {
   const currentAirport = useAirportStore((state) => state.currentAirport);
   const showRangeRings = useRadarSettingsStore((state) => state.showRangeRings);
   const ringDistances = useRadarSettingsStore((state) => state.rangeRingDistances);
+  const guiTheme = useRadarSettingsStore((state) => state.guiTheme);
+  const customColors = useRadarSettingsStore((state) => state.customColors);
+
+  const activeColors = guiTheme === 'classic' ? customColors?.classic : customColors?.modern;
+  const primaryColor = activeColors?.primary || '#00ff66';
+  const secondaryColor = activeColors?.secondary || '#00e5ff';
 
   // Compute Azimuth Radial Ticks (every 30 degrees)
   const azimuthData = useMemo(() => {
@@ -67,7 +73,7 @@ export const RangeRings: React.FC = () => {
           key={`crosshair-${idx}`}
           positions={line}
           pathOptions={{
-            color: '#00ff66',
+            color: primaryColor,
             weight: 1,
             opacity: 0.12,
             dashArray: '3, 6',
@@ -85,7 +91,7 @@ export const RangeRings: React.FC = () => {
 
         const labelIcon = L.divIcon({
           className: 'custom-radar-label',
-          html: `<div style="color: #00bb4a; font-size: 11px; font-weight: bold; background: rgba(10,15,20,0.85); padding: 1px 3px; border: 1px solid rgba(0,255,102,0.3); border-radius: 2px; white-space: nowrap; transform: translate(-50%, -50%);">${distNm} NM</div>`,
+          html: `<div style="color: ${primaryColor}; font-size: 11px; font-weight: bold; background: rgba(10,15,20,0.85); padding: 1px 3px; border: 1px solid ${primaryColor}55; border-radius: 2px; white-space: nowrap; transform: translate(-50%, -50%);">${distNm} NM</div>`,
           iconSize: [40, 16],
           iconAnchor: [20, 8],
         });
@@ -96,7 +102,7 @@ export const RangeRings: React.FC = () => {
               center={[currentAirport.lat, currentAirport.lon]}
               radius={radiusMeters}
               pathOptions={{
-                color: isMajor ? '#00ff66' : '#00bb4a',
+                color: primaryColor,
                 weight: isMajor ? 1.2 : 0.8,
                 opacity: isMajor ? 0.35 : 0.2,
                 fill: false,
@@ -112,7 +118,7 @@ export const RangeRings: React.FC = () => {
       {azimuthData.map((tick) => {
         const degreeIcon = L.divIcon({
           className: 'custom-azimuth-label',
-          html: `<div style="color: #00e5ff; font-size: 10px; font-family: monospace; opacity: 0.65; white-space: nowrap; transform: translate(-50%, -50%);">${tick.label}°</div>`,
+          html: `<div style="color: ${secondaryColor}; font-size: 10px; font-family: monospace; opacity: 0.65; white-space: nowrap; transform: translate(-50%, -50%);">${tick.label}°</div>`,
           iconSize: [28, 14],
           iconAnchor: [14, 7],
         });
@@ -122,7 +128,7 @@ export const RangeRings: React.FC = () => {
             <Polyline
               positions={tick.line}
               pathOptions={{
-                color: '#00e5ff',
+                color: secondaryColor,
                 weight: 1.2,
                 opacity: 0.45,
               }}

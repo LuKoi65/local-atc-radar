@@ -14,8 +14,29 @@ import {
   Languages,
   Palette,
   Check,
+  Pipette,
+  AlertTriangle,
+  Volume2,
+  Clock,
+  Tag,
+  Download,
+  FileSpreadsheet,
+  FileJson,
 } from 'lucide-react';
-import { useRadarSettingsStore, DeclutterLevel, GuiTheme } from '../../store/useRadarSettingsStore';
+import { useTrafficStore } from '../../store/useTrafficStore';
+import { useAirportStore } from '../../store/useAirportStore';
+import { useAlertLogStore } from '../../store/useAlertLogStore';
+import { exportSessionCsv, exportSessionJson } from '../../utils/sessionExport';
+import {
+  useRadarSettingsStore,
+  DeclutterLevel,
+  GuiTheme,
+  ThemeAccentColors,
+  TrailLengthMode,
+  TagDisplayMode,
+  DEFAULT_COLORS_MODERN,
+  DEFAULT_COLORS_CLASSIC,
+} from '../../store/useRadarSettingsStore';
 import { TRANSLATIONS } from '../../utils/i18n';
 import { CountryFlag } from '../common/CountryFlag';
 
@@ -74,6 +95,72 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const showStars = useRadarSettingsStore((state) => state.showStars);
   const setShowStars = useRadarSettingsStore((state) => state.setShowStars);
   const resetAllTagOffsets = useRadarSettingsStore((state) => state.resetAllTagOffsets);
+
+  // New modules settings & stores
+  const stcaEnabled = useRadarSettingsStore((state) => state.stcaEnabled);
+  const setStcaEnabled = useRadarSettingsStore((state) => state.setStcaEnabled);
+  const stcaAudioEnabled = useRadarSettingsStore((state) => state.stcaAudioEnabled);
+  const setStcaAudioEnabled = useRadarSettingsStore((state) => state.setStcaAudioEnabled);
+  const trailLengthMode = useRadarSettingsStore((state) => state.trailLengthMode);
+  const setTrailLengthMode = useRadarSettingsStore((state) => state.setTrailLengthMode);
+  const tagDisplayMode = useRadarSettingsStore((state) => state.tagDisplayMode);
+  const setTagDisplayMode = useRadarSettingsStore((state) => state.setTagDisplayMode);
+  const autoDeconflictTags = useRadarSettingsStore((state) => state.autoDeconflictTags);
+  const setAutoDeconflictTags = useRadarSettingsStore((state) => state.setAutoDeconflictTags);
+
+  const aircraftList = useTrafficStore((state) => state.aircraftList);
+  const alertEntries = useAlertLogStore((state) => state.entries);
+  const currentAirport = useAirportStore((state) => state.currentAirport);
+
+  const customColors = useRadarSettingsStore((state) => state.customColors);
+  const setThemeAccentColor = useRadarSettingsStore((state) => state.setThemeAccentColor);
+  const resetThemeAccentColors = useRadarSettingsStore((state) => state.resetThemeAccentColors);
+  const setThemePreset = useRadarSettingsStore((state) => state.setThemePreset);
+
+  const activeColors = guiTheme === 'classic' ? customColors.classic : customColors.modern;
+
+  const PRESETS: { label: string; colors: ThemeAccentColors }[] = [
+    {
+      label: t.presetDefault,
+      colors: guiTheme === 'classic' ? DEFAULT_COLORS_CLASSIC : DEFAULT_COLORS_MODERN,
+    },
+    {
+      label: t.presetPhosphor,
+      colors: {
+        primary: '#39ff14',
+        secondary: '#00dd55',
+        amber: '#ffcc00',
+        muted: '#85baa0',
+      },
+    },
+    {
+      label: t.presetAmber,
+      colors: {
+        primary: '#ffb000',
+        secondary: '#ffd060',
+        amber: '#ff7700',
+        muted: '#c7b48b',
+      },
+    },
+    {
+      label: t.presetMarine,
+      colors: {
+        primary: '#00d4ff',
+        secondary: '#38bdf8',
+        amber: '#f59e0b',
+        muted: '#94a3b8',
+      },
+    },
+    {
+      label: t.presetHighContrast,
+      colors: {
+        primary: '#22c55e',
+        secondary: '#38bdf8',
+        amber: '#fbbf24',
+        muted: '#cbd5e1',
+      },
+    },
+  ];
 
   if (!isOpen) return null;
 
@@ -178,6 +265,137 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   {t.themeClassicDesc}
                 </div>
               </button>
+            </div>
+          </div>
+
+          {/* Personnalisation des Couleurs d'Accent */}
+          <div className="space-y-3 bg-radar-surface/60 p-3 rounded border border-radar-border">
+            <div className="flex items-center justify-between border-b border-radar-border/60 pb-2">
+              <div className="flex items-center gap-2 font-bold text-radar-cyan">
+                <Pipette className="w-4 h-4 text-radar-cyan" />
+                <span>{t.accentColorsTitle}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-radar-cyan font-mono bg-radar-panel px-2 py-0.5 rounded border border-radar-cyan/30 font-bold">
+                  {guiTheme === 'classic' ? 'Thème Classique' : 'Thème Moderne'}
+                </span>
+                <button
+                  onClick={() => resetThemeAccentColors(guiTheme)}
+                  className="px-2 py-0.5 rounded bg-radar-panel border border-radar-border hover:border-radar-amber text-radar-muted hover:text-radar-amber transition-colors text-[10px] font-bold flex items-center gap-1"
+                  title={t.resetColorsBtn}
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-radar-muted leading-relaxed">
+              {t.accentColorsDesc} ({t.activeThemeEditing}{' '}
+              <strong className="text-radar-green">
+                {guiTheme === 'classic' ? t.themeClassic : t.themeModern}
+              </strong>).
+            </p>
+
+            {/* Quick Palettes / Presets */}
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold text-radar-muted uppercase tracking-wider">
+                {t.accentPresets}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                {PRESETS.map((p, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setThemePreset(guiTheme, p.colors)}
+                    className="p-1.5 rounded bg-radar-panel border border-radar-border hover:border-radar-cyan transition-colors flex flex-col items-center gap-1 text-[9.5px] font-bold"
+                  >
+                    <div className="flex gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.colors.primary }} />
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.colors.secondary }} />
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: p.colors.amber }} />
+                    </div>
+                    <span className="truncate w-full text-center text-radar-muted hover:text-white">
+                      {p.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 4 Interactive Color Pickers */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+              {/* Primary Green */}
+              <div className="bg-radar-panel p-2 rounded border border-radar-border flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-white truncate">{t.accentPrimary}</div>
+                  <div className="text-[9px] text-radar-muted font-mono">{activeColors.primary}</div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="color"
+                    value={activeColors.primary}
+                    onChange={(e) => setThemeAccentColor(guiTheme, 'primary', e.target.value)}
+                    className="w-7 h-7 rounded border border-radar-border cursor-pointer bg-transparent p-0"
+                  />
+                </div>
+              </div>
+
+              {/* Secondary Cyan */}
+              <div className="bg-radar-panel p-2 rounded border border-radar-border flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-white truncate">{t.accentSecondary}</div>
+                  <div className="text-[9px] text-radar-muted font-mono">{activeColors.secondary}</div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="color"
+                    value={activeColors.secondary}
+                    onChange={(e) => setThemeAccentColor(guiTheme, 'secondary', e.target.value)}
+                    className="w-7 h-7 rounded border border-radar-border cursor-pointer bg-transparent p-0"
+                  />
+                </div>
+              </div>
+
+              {/* Amber / Vario */}
+              <div className="bg-radar-panel p-2 rounded border border-radar-border flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-white truncate">{t.accentAmber}</div>
+                  <div className="text-[9px] text-radar-muted font-mono">{activeColors.amber}</div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="color"
+                    value={activeColors.amber}
+                    onChange={(e) => setThemeAccentColor(guiTheme, 'amber', e.target.value)}
+                    className="w-7 h-7 rounded border border-radar-border cursor-pointer bg-transparent p-0"
+                  />
+                </div>
+              </div>
+
+              {/* Muted Text / High Readability */}
+              <div className="bg-radar-panel p-2 rounded border border-radar-border flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] font-bold text-white truncate">{t.accentMuted}</div>
+                  <div className="text-[9px] text-radar-muted font-mono">{activeColors.muted}</div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <input
+                    type="color"
+                    value={activeColors.muted}
+                    onChange={(e) => setThemeAccentColor(guiTheme, 'muted', e.target.value)}
+                    className="w-7 h-7 rounded border border-radar-border cursor-pointer bg-transparent p-0"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Real-time live preview strip */}
+            <div className="p-2.5 bg-radar-panel rounded border border-radar-border flex items-center justify-between text-[10px] font-mono">
+              <span className="text-radar-muted uppercase font-bold">Aperçu :</span>
+              <span className="font-extrabold text-radar-green">AFR123</span>
+              <span className="font-bold text-radar-cyan">FL350</span>
+              <span className="font-bold text-radar-amber">↑ 1800 FPM</span>
+              <span className="text-radar-muted font-bold">ALT BARO (260 KT)</span>
             </div>
           </div>
 
@@ -336,6 +554,146 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 className="accent-radar-cyan cursor-pointer w-4 h-4"
               />
             </label>
+          </div>
+
+          {/* MODULE 4.2 : Détection de Conflit (STCA) */}
+          <div className="space-y-2 bg-radar-surface/60 p-3 rounded border border-radar-border">
+            <div className="font-bold text-radar-amber mb-2 flex items-center gap-1.5">
+              <AlertTriangle className="w-4 h-4 text-radar-amber" />
+              <span>STCA &amp; ALERTES DE PROXIMITÉ (ICAO)</span>
+            </div>
+
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-radar-muted text-xs">
+                Activer l'analyse de conflit en temps réel (&lt; 5 NM / &lt; 1000 FT)
+              </span>
+              <input
+                type="checkbox"
+                checked={stcaEnabled}
+                onChange={(e) => setStcaEnabled(e.target.checked)}
+                className="accent-radar-amber cursor-pointer w-4 h-4"
+              />
+            </label>
+
+            <label className="flex items-center justify-between cursor-pointer">
+              <span className="text-radar-muted text-xs flex items-center gap-1.5">
+                <Volume2 className="w-3.5 h-3.5 text-radar-cyan" />
+                Bip sonore discret d'avertissement ATC
+              </span>
+              <input
+                type="checkbox"
+                checked={stcaAudioEnabled}
+                onChange={(e) => setStcaAudioEnabled(e.target.checked)}
+                disabled={!stcaEnabled}
+                className="accent-radar-cyan cursor-pointer w-4 h-4"
+              />
+            </label>
+          </div>
+
+          {/* MODULE 4.3 : Traînées d'Historique Radar */}
+          <div className="space-y-2 bg-radar-surface/60 p-3 rounded border border-radar-border">
+            <div className="font-bold text-radar-cyan mb-2 flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-radar-cyan" />
+              <span>TRAÎNÉES D'HISTORIQUE &amp; RÉMANENCE PHOSPHORE</span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-1.5">
+              {(
+                [
+                  { id: 'off', label: 'OFF' },
+                  { id: '1min', label: '1 MIN' },
+                  { id: '3min', label: '3 MIN' },
+                  { id: 'all', label: 'TOUT' },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => setTrailLengthMode(m.id)}
+                  className={`py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                    trailLengthMode === m.id
+                      ? 'bg-radar-cyan text-radar-bg border-radar-cyan font-black'
+                      : 'bg-radar-panel text-radar-muted border-radar-border hover:text-white'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <div className="text-[10px] text-radar-muted opacity-80">
+              Affiche les positions radar récentes sous forme de pastilles dégressives s'estompant avec le temps.
+            </div>
+          </div>
+
+          {/* MODULE 4.4 : Personnalisation des Étiquettes Radar (Tags) */}
+          <div className="space-y-2 bg-radar-surface/60 p-3 rounded border border-radar-border">
+            <div className="font-bold text-radar-green mb-2 flex items-center gap-1.5">
+              <Tag className="w-4 h-4 text-radar-green" />
+              <span>ÉTIQUETTES RADAR (TAGS) &amp; DÉCLUTTER</span>
+            </div>
+
+            {/* Mode d'affichage */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {(
+                [
+                  { id: 'compact', label: 'COMPACT' },
+                  { id: 'standard', label: 'STANDARD' },
+                  { id: 'extended', label: 'ÉTENDU' },
+                ] as const
+              ).map((mode) => (
+                <button
+                  key={mode.id}
+                  type="button"
+                  onClick={() => setTagDisplayMode(mode.id)}
+                  className={`py-1.5 rounded text-[10px] font-bold border transition-colors ${
+                    tagDisplayMode === mode.id
+                      ? 'bg-radar-green text-radar-bg border-radar-green font-black'
+                      : 'bg-radar-panel text-radar-muted border-radar-border hover:text-white'
+                  }`}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Anti-chevauchement */}
+            <label className="flex items-center justify-between cursor-pointer pt-1">
+              <span className="text-radar-muted text-xs">
+                Lignes de rappel intelligentes (anti-chevauchement auto)
+              </span>
+              <input
+                type="checkbox"
+                checked={autoDeconflictTags}
+                onChange={(e) => setAutoDeconflictTags(e.target.checked)}
+                className="accent-radar-green cursor-pointer w-4 h-4"
+              />
+            </label>
+          </div>
+
+          {/* MODULE 4.5 : Exportation des Données de Session */}
+          <div className="space-y-2 bg-radar-surface/60 p-3 rounded border border-radar-border">
+            <div className="font-bold text-radar-cyan mb-2 flex items-center gap-1.5">
+              <Download className="w-4 h-4 text-radar-cyan" />
+              <span>EXPORTATION DE SESSION &amp; DONNÉES RADAR</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => exportSessionCsv(aircraftList, alertEntries)}
+                className="py-1.5 px-3 rounded bg-radar-panel border border-radar-border hover:border-radar-cyan text-radar-cyan font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>EXPORTER EN CSV</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => exportSessionJson(aircraftList, alertEntries, currentAirport?.icao)}
+                className="py-1.5 px-3 rounded bg-radar-panel border border-radar-border hover:border-radar-green text-radar-green font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+              >
+                <FileJson className="w-4 h-4" />
+                <span>EXPORTER EN JSON</span>
+              </button>
+            </div>
           </div>
 
           {/* Réinitialisation de la position des étiquettes déplacées */}

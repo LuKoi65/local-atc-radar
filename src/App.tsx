@@ -8,8 +8,9 @@ import { VhfSidebar } from './components/hud/VhfSidebar';
 import { FlightsSidebar } from './components/hud/FlightsSidebar';
 import { RadarScope } from './components/radar/RadarScope';
 import { useAirportStore } from './store/useAirportStore';
-import { useRadarSettingsStore } from './store/useRadarSettingsStore';
+import { useRadarSettingsStore, applyThemeColorsToCss } from './store/useRadarSettingsStore';
 import { useTrafficStore } from './store/useTrafficStore';
+import { useAlertLogStore } from './store/useAlertLogStore';
 import { adsbService } from './services/adsb/adsbService';
 import { metarService } from './services/weather/metarService';
 
@@ -26,6 +27,7 @@ export const App: React.FC = () => {
   const detectionRangeNm = useRadarSettingsStore((state) => state.detectionRangeNm);
   const setMetar = useRadarSettingsStore((state) => state.setMetar);
   const guiTheme = useRadarSettingsStore((state) => state.guiTheme);
+  const customColors = useRadarSettingsStore((state) => state.customColors);
 
   const setTraffic = useTrafficStore((state) => state.setTraffic);
   const setPolling = useTrafficStore((state) => state.setPolling);
@@ -83,6 +85,21 @@ export const App: React.FC = () => {
 
         if (!isCancelled) {
           setTraffic(traffic);
+
+          // Automatically record transponder emergency squawks (7700, 7600, 7500)
+          for (const ac of traffic) {
+            const sq = ac.squawk?.trim();
+            if (sq === '7700' || sq === '7600' || sq === '7500') {
+              useAlertLogStore.getState().addEntry({
+                type: sq === '7700' ? 'SQUAWK_EMERGENCY' : sq === '7600' ? 'SQUAWK_RADIO' : 'SQUAWK_HIJACK',
+                severity: 'warning',
+                title: `URGENCE TRANSPONDEUR ${sq} : ${ac.flight}`,
+                details: `${ac.flight} (${ac.registration || ac.hex}) à ${ac.altitudeFt} FT - ${ac.groundSpeedKts} kts (${ac.operator || 'Opérateur inconnu'}).`,
+                callsign1: ac.flight,
+                hex1: ac.hex,
+              });
+            }
+          }
         }
       } catch (err: any) {
         if (!isCancelled) {
@@ -108,7 +125,7 @@ export const App: React.FC = () => {
     };
   }, [dataSource, currentAirport.icao, activeRunwayId, rapidApiKey, detectionRangeNm]);
 
-  // Synchronize active theme with document.body
+  // Synchronize active theme & custom accent colors with document.body & CSS variables
   useEffect(() => {
     if (guiTheme === 'classic') {
       document.body.classList.add('theme-classic');
@@ -117,7 +134,12 @@ export const App: React.FC = () => {
       document.body.classList.add('theme-modern');
       document.body.classList.remove('theme-classic');
     }
-  }, [guiTheme]);
+
+    const activeColors = guiTheme === 'classic' ? customColors?.classic : customColors?.modern;
+    if (activeColors) {
+      applyThemeColorsToCss(activeColors);
+    }
+  }, [guiTheme, customColors]);
 
   return (
     <div
